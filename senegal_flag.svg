@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="120" viewBox="0 0 180 120" role="img" aria-label="Flag of Senegal">
+  <rect width="60" height="120" fill="#00853F"/>
+  <rect x="60" width="60" height="120" fill="#FDEF42"/>
+  <rect x="120" width="60" height="120" fill="#E31B23"/>
+  <path d="M90 36l6.3 19.4h20.4l-16.5 12 6.3 19.4L90 74.8 73.5 86.8l6.3-19.4-16.5-12h20.4z" fill="#00853F"/>
+</svg>
