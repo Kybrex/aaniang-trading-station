@@ -7,6 +7,7 @@ from research import add_relative_strength, annotate_earnings, backtest, market_
 from scanner import ScanSettings, scan_market
 from storage import add_journal, add_watch, journal, watchlist
 from universe import load_universe
+from value_screener import scan_value
 
 st.set_page_config(page_title="AANIANG Tranding Station", page_icon="S", layout="wide")
 logo_col, title_col = st.columns([1, 14], vertical_alignment="center")
@@ -38,6 +39,8 @@ def get_universe(choice: str) -> list[str]:
 
 if "results" not in st.session_state:
     st.session_state.results = pd.DataFrame()
+if "value_results" not in st.session_state:
+    st.session_state.value_results = pd.DataFrame()
 if st.button("Scan market", type="primary", use_container_width=True):
     symbols = get_universe(universe_choice)
     settings = ScanSettings(direction, min_score, max_results, min_price, int(min_volume), equity, risk_pct, batch_size)
@@ -99,3 +102,26 @@ with journal_tab:
         if st.form_submit_button("Save trade") and j_symbol:
             add_journal({"Date": j_date.isoformat(), "Symbol": j_symbol, "Side": j_side, "Entry": j_entry, "Exit": j_exit, "Shares": j_shares, "Notes": notes}); st.success("Trade saved locally.")
     st.dataframe(journal(), use_container_width=True, hide_index=True)
+
+st.divider()
+st.header("Value and economic-moat screener")
+st.caption("Uses Yahoo analyst mean target price as a fair-value proxy. Moat ratings below are estimates from profitability, operating margin, leverage, and company scale; they are not Morningstar ratings.")
+value_a, value_b, value_c = st.columns(3)
+with value_a:
+    value_min = st.number_input("Minimum analyst upside (%)", min_value=0, max_value=100, value=25, key="value_min")
+with value_b:
+    value_max = st.number_input("Maximum analyst upside (%)", min_value=1, max_value=200, value=50, key="value_max")
+with value_c:
+    moat_filter = st.selectbox("Moat estimate", ["Any estimate", "Wide estimate", "Narrow estimate"])
+value_limit = st.slider("Fundamental scan universe size", 25, 200, 75, 25, help="A smaller scan is faster and avoids Yahoo request limits.")
+if st.button("Find 25-50% undervalued moat candidates", type="primary"):
+    value_progress = st.progress(0, text="Reading Yahoo fundamental data...")
+    def value_update(done: int, total: int) -> None:
+        value_progress.progress(done / max(total, 1), text=f"Checked {done} of {total} companies")
+    symbols = get_universe("S&P 500 / liquid fallback")[:value_limit]
+    value_results, value_skipped = scan_value(symbols, int(value_min), int(value_max), moat_filter, value_update)
+    value_progress.empty(); st.session_state.value_results = value_results
+    st.success(f"Finished. Found {len(value_results)} candidates; {value_skipped} unavailable symbols skipped.")
+value_results = st.session_state.value_results
+if not value_results.empty:
+    st.dataframe(value_results, use_container_width=True, hide_index=True, column_config={"Price": st.column_config.NumberColumn(format="$%.2f"), "Analyst fair value": st.column_config.NumberColumn(format="$%.2f"), "Upside": st.column_config.NumberColumn(format="%.1f%%"), "ROE": st.column_config.NumberColumn(format="%.1f%%"), "Operating margin": st.column_config.NumberColumn(format="%.1f%%")})
