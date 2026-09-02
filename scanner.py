@@ -2,13 +2,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 import math
+import time
 import pandas as pd
 from data import download_batch, last_number, symbol_frame
 from indicators import add_indicators
 
 @dataclass(frozen=True)
 class ScanSettings:
-    direction: str; min_score: int; max_results: int; min_price: float; min_volume: int; equity: float; risk_pct: float; batch_size: int
+    direction: str; min_score: int; max_results: int; min_price: float; min_volume: int; equity: float; risk_pct: float; batch_size: int; pause_seconds: float = .5
 
 def candidate(symbol: str, frame: pd.DataFrame, s: ScanSettings) -> dict | None:
     if len(frame) < 205:
@@ -35,8 +36,9 @@ def candidate(symbol: str, frame: pd.DataFrame, s: ScanSettings) -> dict | None:
     target1 = entry + 2 * risk if side == "LONG" else entry - 2 * risk
     target2 = entry + 3 * risk if side == "LONG" else entry - 3 * risk
     shares = max(0, math.floor((s.equity * (s.risk_pct / 100)) / risk))
-    support = last_number(frame["Low"].tail(20).min())
-    resistance = last_number(frame["High"].tail(20).max())
+    previous = frame.iloc[:-1].tail(20)
+    support = last_number(previous["Low"].min())
+    resistance = last_number(previous["High"].max())
     setup_type = "Breakout" if (side == "LONG" and entry >= resistance * .985) or (side == "SHORT" and entry <= support * 1.015) else "EMA pullback"
     plan = f"{side} {setup_type}: enter near ${entry:.2f}; stop ${stop:.2f}; targets ${target1:.2f}/${target2:.2f}."
     return {"Symbol": symbol, "Score": score, "Signal": side, "Entry": entry, "Stop": stop, "Risk/Share": risk,
@@ -44,10 +46,11 @@ def candidate(symbol: str, frame: pd.DataFrame, s: ScanSettings) -> dict | None:
             "Support": support, "Resistance": resistance, "Setup": setup_type, "Trade plan": plan}
 
 def scan_market(symbols: list[str], s: ScanSettings, progress: Callable[[int, int, str], None]) -> tuple[pd.DataFrame, int]:
-    rows: list[dict] = []; skipped = 0; total = len(symbols)
+    rows: list[dict] = []; skipped = 0; total = len(symbols); consecutive_empty_batches = 0
     for start in range(0, total, s.batch_size):
         batch = symbols[start:start + s.batch_size]
         raw = download_batch(batch)
+        consecutive_empty_batches = consecutive_empty_batches + 1 if raw.empty else 0
         for symbol in batch:
             frame = symbol_frame(raw, symbol)
             row = candidate(symbol, frame, s) if not frame.empty else None
@@ -55,6 +58,12 @@ def scan_market(symbols: list[str], s: ScanSettings, progress: Callable[[int, in
             elif frame.empty: skipped += 1
         done = min(start + len(batch), total)
         progress(done, total, f"Processed {done:,} of {total:,} symbols ({len(rows)} setups)")
+        if consecutive_empty_batches >= 2:
+            skipped += total - done
+            progress(total, total, "Yahoo Finance is unavailable or rate-limited; scan stopped safely.")
+            break
+        if done < total and s.pause_seconds > 0:
+            time.sleep(s.pause_seconds if not raw.empty else max(2.0, s.pause_seconds))
     result = pd.DataFrame(rows)
     if not result.empty:
         result = result.sort_values(["Score", "20D Momentum"], ascending=[False, False], key=lambda col: col.abs() if col.name == "20D Momentum" else col).head(s.max_results).reset_index(drop=True)

@@ -1,4 +1,4 @@
-# Swing Setup Screener
+# AANIANG Trading Station
 
 A standalone Streamlit research app that scans US equities with Yahoo Finance and ranks LONG or SHORT swing-trading setups. It is for education and research, not investment advice.
 
@@ -22,7 +22,7 @@ Open the local address displayed by Streamlit (normally http://localhost:8501).
 
 The default broad universe is Nasdaq's US-listed screener endpoint (up to 5,000 listed symbols). If that endpoint is unavailable, the app automatically uses the included liquid-US-stock fallback list. Yahoo Finance is used for all OHLCV price data; Internet access is required.
 
-The initial broad scan can take several minutes. Smaller maximum result counts only affect displayed candidates, not the universe. Use the fallback universe for a faster test.
+The initial broad scan can take several minutes. Start with the liquid fallback and 50–250 symbols. The scanner pauses between Yahoo batches and stops safely after two consecutive empty batches instead of appearing frozen during a rate limit.
 
 ## Trading workspace additions
 
@@ -40,9 +40,10 @@ Before running the UI, validate source and imports with:
 
     python -m compileall app.py data.py indicators.py scanner.py charts.py universe.py
     python -c "import app, scanner, data, charts, universe; print('Imports passed')"
+    python -m unittest discover -s tests -v
 
 For a basic scanner smoke test (uses live Yahoo data):
 
     python -c "from scanner import ScanSettings,scan_market; r,n=scan_market(['AAPL','MSFT','NVDA'],ScanSettings('Both',0,10,1,1,25000,1,3),lambda *x:None); print(r[['Symbol','Score','Signal']]); print('Skipped:',n)"
 
-Yahoo Finance is an unofficial data source and can throttle or occasionally omit symbols. The app intentionally skips a failed symbol and continues rather than hanging the scan.
+Yahoo Finance is an unofficial data source and can throttle or occasionally omit symbols. The app skips failed symbols, limits the default scan to 250 symbols, and stops early after repeated empty batches rather than hanging indefinitely.

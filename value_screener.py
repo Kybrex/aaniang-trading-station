@@ -11,7 +11,7 @@ def number(value: object) -> float | None:
     try:
         result = float(value)
         return result if math.isfinite(result) else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 def moat_estimate(info: dict) -> tuple[str, int]:

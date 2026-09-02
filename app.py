@@ -3,18 +3,18 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 from charts import build_chart
-from research import add_relative_strength, annotate_earnings, backtest, market_regime
+from research import add_relative_strength, annotate_earnings, backtest, evaluate_alerts, market_regime
 from scanner import ScanSettings, scan_market
 from storage import add_journal, add_watch, journal, watchlist
 from universe import load_universe
 from value_screener import scan_value
 
-st.set_page_config(page_title="AANIANG Tranding Station", page_icon="S", layout="wide")
+st.set_page_config(page_title="AANIANG Trading Station", page_icon="S", layout="wide")
 logo_col, title_col = st.columns([1, 14], vertical_alignment="center")
 with logo_col:
     st.image("senegal_flag.svg", width=48)
 with title_col:
-    st.title("AANIANG Tranding Station")
+    st.title("AANIANG Trading Station")
 st.caption("US equities via Yahoo Finance | educational research tool, not investment advice")
 with st.sidebar:
     st.header("Scan settings")
@@ -31,7 +31,8 @@ with st.sidebar:
     earnings_filter = st.checkbox("Exclude candidates with near earnings", value=True)
     st.divider()
     universe_choice = st.radio("Universe", ["Broad US listed stocks", "S&P 500 / liquid fallback"], index=0)
-    batch_size = st.slider("Download batch size", 25, 200, 100, 25)
+    universe_limit = st.slider("Maximum symbols per scan", 50, 5000, 250, 50, help="Start with 250. Larger scans take longer and are more likely to be limited by Yahoo Finance.")
+    batch_size = st.slider("Download batch size", 10, 100, 25, 5)
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_universe(choice: str) -> list[str]:
@@ -41,8 +42,8 @@ if "results" not in st.session_state:
     st.session_state.results = pd.DataFrame()
 if "value_results" not in st.session_state:
     st.session_state.value_results = pd.DataFrame()
-if st.button("Scan market", type="primary", use_container_width=True):
-    symbols = get_universe(universe_choice)
+if st.button("Scan market", type="primary", width="stretch"):
+    symbols = get_universe(universe_choice)[:int(universe_limit)]
     settings = ScanSettings(direction, min_score, max_results, min_price, int(min_volume), equity, risk_pct, batch_size)
     progress = st.progress(0, text="Starting Yahoo Finance scan...")
     status = st.empty()
@@ -54,7 +55,8 @@ if st.button("Scan market", type="primary", use_container_width=True):
         results = annotate_earnings(add_relative_strength(results), earnings_days)
         if earnings_filter: results = results[results["Earnings safe"]].reset_index(drop=True)
     progress.empty(); st.session_state.results = results
-    status.success(f"Finished. {len(results)} candidates found; {skipped} symbols skipped/unavailable.")
+    if skipped >= len(symbols): status.error("Yahoo Finance returned no usable data. Wait a few minutes, then retry with the liquid fallback and 50–250 symbols.")
+    else: status.success(f"Finished. {len(results)} candidates found; {skipped} symbols skipped/unavailable.")
 
 results = st.session_state.results
 if results.empty:
@@ -64,7 +66,7 @@ else:
     for column, (name, status) in zip(cols, market_regime().items()): column.metric(name, status)
     st.subheader(f"Ranked opportunities ({len(results)})")
     display = results[["Symbol", "Score", "Signal", "Setup", "Entry", "Stop", "Risk/Share", "20D Momentum", "60D Momentum", "RS vs SPY", "Earnings", "Shares", "Trade plan"]]
-    st.dataframe(display, use_container_width=True, hide_index=True, column_config={"Score": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%d"), "Entry": st.column_config.NumberColumn(format="$%.2f"), "Stop": st.column_config.NumberColumn(format="$%.2f"), "Risk/Share": st.column_config.NumberColumn(format="$%.2f"), "20D Momentum": st.column_config.NumberColumn(format="%.1f%%"), "60D Momentum": st.column_config.NumberColumn(format="%.1f%%"), "RS vs SPY": st.column_config.NumberColumn(format="%.1f%%")})
+    st.dataframe(display, width="stretch", hide_index=True, column_config={"Score": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%d"), "Entry": st.column_config.NumberColumn(format="$%.2f"), "Stop": st.column_config.NumberColumn(format="$%.2f"), "Risk/Share": st.column_config.NumberColumn(format="$%.2f"), "20D Momentum": st.column_config.NumberColumn(format="%.1f%%"), "60D Momentum": st.column_config.NumberColumn(format="%.1f%%"), "RS vs SPY": st.column_config.NumberColumn(format="%.1f%%")})
     symbol = st.selectbox("Open candidate chart", results["Symbol"].tolist())
     selected = results.loc[results.Symbol == symbol].iloc[0]
     capped_shares = min(int(selected.Shares), int((equity * max_position_pct / 100) / selected.Entry))
@@ -73,7 +75,7 @@ else:
     a.metric("Risk budget", f"${equity * risk_pct / 100:,.0f}"); b.metric("Capped position", f"{capped_shares:,} shares"); c.metric("Portfolio heat limit", f"${equity * max_portfolio_risk / 100:,.0f}")
     with st.expander("Enlarged interactive chart", expanded=True):
         fig, message = build_chart(symbol, selected)
-        if fig: st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+        if fig: st.plotly_chart(fig, width="stretch", config={"displaylogo": False})
         else: st.warning(message)
     action_col, backtest_col = st.columns(2)
     with action_col:
@@ -87,13 +89,15 @@ else:
             if trades.empty: st.warning("Not enough usable history for this test.")
             else:
                 st.metric("Backtest expectancy", f"{trades['R multiple'].mean():.2f}R", f"Win rate {(trades['R multiple'] > 0).mean():.0%}")
-                st.dataframe(trades.tail(30), hide_index=True, use_container_width=True)
+                st.dataframe(trades.tail(30), hide_index=True, width="stretch")
 
 st.divider()
 watch_tab, journal_tab = st.tabs(["Watchlist and alerts", "Trade journal"])
 with watch_tab:
     st.caption("Local alerts are reference markers. The app cannot send background notifications while closed.")
-    st.dataframe(watchlist(), use_container_width=True, hide_index=True)
+    saved_watchlist=watchlist()
+    if st.button("Refresh watchlist prices and alerts",disabled=saved_watchlist.empty): st.session_state.evaluated_watchlist=evaluate_alerts(saved_watchlist)
+    st.dataframe(st.session_state.get("evaluated_watchlist",saved_watchlist), width="stretch", hide_index=True)
 with journal_tab:
     with st.form("journal_form", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
@@ -101,7 +105,7 @@ with journal_tab:
         j_entry = st.number_input("Entry", min_value=0.0); j_exit = st.number_input("Exit", min_value=0.0); j_shares = st.number_input("Shares", min_value=0, step=1); notes = st.text_input("Notes")
         if st.form_submit_button("Save trade") and j_symbol:
             add_journal({"Date": j_date.isoformat(), "Symbol": j_symbol, "Side": j_side, "Entry": j_entry, "Exit": j_exit, "Shares": j_shares, "Notes": notes}); st.success("Trade saved locally.")
-    st.dataframe(journal(), use_container_width=True, hide_index=True)
+    st.dataframe(journal(), width="stretch", hide_index=True)
 
 st.divider()
 st.header("Value and economic-moat screener")
@@ -124,4 +128,4 @@ if st.button("Find 25-50% undervalued moat candidates", type="primary"):
     st.success(f"Finished. Found {len(value_results)} candidates; {value_skipped} unavailable symbols skipped.")
 value_results = st.session_state.value_results
 if not value_results.empty:
-    st.dataframe(value_results, use_container_width=True, hide_index=True, column_config={"Price": st.column_config.NumberColumn(format="$%.2f"), "Analyst fair value": st.column_config.NumberColumn(format="$%.2f"), "Upside": st.column_config.NumberColumn(format="%.1f%%"), "ROE": st.column_config.NumberColumn(format="%.1f%%"), "Operating margin": st.column_config.NumberColumn(format="%.1f%%")})
+    st.dataframe(value_results, width="stretch", hide_index=True, column_config={"Price": st.column_config.NumberColumn(format="$%.2f"), "Analyst fair value": st.column_config.NumberColumn(format="$%.2f"), "Upside": st.column_config.NumberColumn(format="%.1f%%"), "ROE": st.column_config.NumberColumn(format="%.1f%%"), "Operating margin": st.column_config.NumberColumn(format="%.1f%%")})

@@ -46,8 +46,17 @@ def next_earnings(symbol: str) -> date | None:
     try:
         calendar = yf.Ticker(symbol).calendar
         if calendar is None: return None
-        value = calendar.loc["Earnings Date"].iloc[0] if isinstance(calendar, pd.DataFrame) and "Earnings Date" in calendar.index else None
+        value = None
+        if isinstance(calendar, pd.DataFrame) and "Earnings Date" in calendar.index:
+            value = calendar.loc["Earnings Date"].iloc[0]
+        elif isinstance(calendar, dict):
+            value = calendar.get("Earnings Date") or calendar.get("EarningsDate")
+        elif isinstance(calendar, pd.Series):
+            value = calendar.get("Earnings Date")
+        if isinstance(value, (list, tuple, pd.Index)):
+            value = value[0] if len(value) else None
         parsed = pd.to_datetime(value, errors="coerce")
+        if isinstance(parsed, pd.DatetimeIndex): parsed = parsed[0] if len(parsed) else pd.NaT
         return parsed.date() if pd.notna(parsed) else None
     except Exception:
         return None
@@ -65,8 +74,8 @@ def backtest(symbol: str, side: str, days: int = 20) -> pd.DataFrame:
     df = add_indicators(frame).dropna().copy(); trades: list[dict] = []
     for i in range(1, len(df) - days):
         row, previous = df.iloc[i], df.iloc[i - 1]
-        long = row.Close > row.SMA200 and row.EMA20 > row.EMA50 and row.Mom20 > 0 and previous.Close <= previous.High
-        short = row.Close < row.SMA200 and row.EMA20 < row.EMA50 and row.Mom20 < 0 and previous.Close >= previous.Low
+        long = row.Close > row.SMA200 and row.EMA20 > row.EMA50 and row.Mom20 > 0 and row.Close > row.EMA20 and previous.Close <= previous.EMA20
+        short = row.Close < row.SMA200 and row.EMA20 < row.EMA50 and row.Mom20 < 0 and row.Close < row.EMA20 and previous.Close >= previous.EMA20
         if (side == "LONG" and not long) or (side == "SHORT" and not short): continue
         entry, risk = float(row.Close), float(row.ATR14 * 1.5)
         stop, target = (entry - risk, entry + 2 * risk) if side == "LONG" else (entry + risk, entry - 2 * risk)
@@ -78,3 +87,19 @@ def backtest(symbol: str, side: str, days: int = 20) -> pd.DataFrame:
             if side == "SHORT" and future.Low <= target: outcome = 2; break
         trades.append({"Date": df.index[i].date(), "R multiple": round(outcome, 2)})
     return pd.DataFrame(trades)
+
+def evaluate_alerts(saved: pd.DataFrame) -> pd.DataFrame:
+    """Evaluate saved watchlist conditions against the latest available close."""
+    if saved.empty: return saved
+    raw = download_batch(saved["Symbol"].astype(str).tolist(), period="5d", timeout=20)
+    rows=[]
+    for _, item in saved.iterrows():
+        frame=symbol_frame(raw,str(item.Symbol)); price=last_number(frame["Close"].iloc[-1]) if not frame.empty else None
+        condition=str(item.Alert); side=str(item.Signal).upper(); reached=False
+        if price is not None:
+            if condition=="Entry reached": reached=price>=float(item.Entry) if side=="LONG" else price<=float(item.Entry)
+            elif condition=="Stop reached": reached=price<=float(item.Stop) if side=="LONG" else price>=float(item.Stop)
+            elif condition=="Target 1 reached": reached=price>=float(item["Target 1"]) if side=="LONG" else price<=float(item["Target 1"])
+            elif condition=="Target 2 reached": reached=price>=float(item["Target 2"]) if side=="LONG" else price<=float(item["Target 2"])
+        row=item.to_dict(); row["Last price"]=price; row["Status"]="TRIGGERED" if reached else ("Waiting" if price is not None else "Unavailable"); rows.append(row)
+    return pd.DataFrame(rows)
