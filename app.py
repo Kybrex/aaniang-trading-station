@@ -5,9 +5,10 @@ import streamlit as st
 from charts import build_chart
 from research import add_relative_strength, annotate_earnings, backtest, evaluate_alerts, market_regime
 from scanner import ScanSettings, scan_market
-from storage import add_journal, add_watch, journal, watchlist
+from storage import add_journal, add_watch, journal, save_attachment, watchlist
 from universe import load_universe
 from value_screener import scan_value
+import v2_ui
 
 st.set_page_config(page_title="AANIANG Trading Station", page_icon="S", layout="wide")
 logo_col, title_col = st.columns([1, 14], vertical_alignment="center")
@@ -97,7 +98,7 @@ else:
             st.success("Saved locally. Alerts are evaluated when this app is open and refreshed.")
     with backtest_col:
         if st.button("Run selected setup backtest"):
-            trades = backtest(symbol, selected.Signal)
+            trades = backtest(symbol, selected.Signal, setup=selected.Setup)
             if trades.empty: st.warning("Not enough usable history for this test.")
             else:
                 st.metric("Backtest expectancy", f"{trades['R multiple'].mean():.2f}R", f"Win rate {(trades['R multiple'] > 0).mean():.0%}")
@@ -114,9 +115,11 @@ with journal_tab:
     with st.form("journal_form", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
         j_symbol = c1.text_input("Symbol").upper(); j_side = c2.selectbox("Side", ["LONG", "SHORT"]); j_date = c3.date_input("Date")
-        j_entry = st.number_input("Entry", min_value=0.0); j_exit = st.number_input("Exit", min_value=0.0); j_shares = st.number_input("Shares", min_value=0, step=1); notes = st.text_input("Notes")
+        c4,c5,c6=st.columns(3);j_setup=c4.selectbox("Setup",["Breakout","EMA pullback","VCP","RS breakout","Post-event gap","Reversal","Other"]);j_stop=c5.number_input("Initial Stop",min_value=0.0);j_target=c6.number_input("Initial Target",min_value=0.0)
+        j_entry = st.number_input("Entry", min_value=0.0); j_exit = st.number_input("Exit", min_value=0.0); j_shares = st.number_input("Shares", min_value=0, step=1); notes = st.text_input("Notes");screenshot=st.file_uploader("Chart screenshot (optional)",type=["png","jpg","jpeg"],key="journal_screenshot")
         if st.form_submit_button("Save trade") and j_symbol:
-            add_journal({"Date": j_date.isoformat(), "Symbol": j_symbol, "Side": j_side, "Entry": j_entry, "Exit": j_exit, "Shares": j_shares, "Notes": notes}); st.success("Trade saved locally.")
+            attachment=save_attachment(screenshot.name,screenshot.getvalue()) if screenshot else ""
+            add_journal({"Date": j_date.isoformat(), "Symbol": j_symbol, "Side": j_side,"Setup":j_setup,"Initial Stop":j_stop,"Initial Target":j_target,"Entry": j_entry, "Exit": j_exit, "Shares": j_shares,"Screenshot":attachment,"Notes": notes}); st.success("Trade saved locally.")
     st.dataframe(journal(), width="stretch", hide_index=True)
 
 st.divider()
@@ -141,3 +144,5 @@ if st.button("Find 25-50% undervalued moat candidates", type="primary"):
 value_results = st.session_state.value_results
 if not value_results.empty:
     st.dataframe(value_results, width="stretch", hide_index=True, column_config={"Price": st.column_config.NumberColumn(format="$%.2f"), "Analyst fair value": st.column_config.NumberColumn(format="$%.2f"), "Upside": st.column_config.NumberColumn(format="%.1f%%"), "ROE": st.column_config.NumberColumn(format="%.1f%%"), "Operating margin": st.column_config.NumberColumn(format="%.1f%%")})
+
+v2_ui.render(results, equity)

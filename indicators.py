@@ -10,5 +10,9 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     out["VolAvg20"] = out["Volume"].rolling(20).mean()
     out["Mom20"] = (out["Close"] / out["Close"].shift(20) - 1) * 100
     out["Mom60"] = (out["Close"] / out["Close"].shift(60) - 1) * 100
+    delta = out["Close"].diff()
+    gains = delta.clip(lower=0).rolling(14).mean()
+    losses = (-delta.clip(upper=0)).rolling(14).mean()
+    rs = gains / losses.replace(0, float("nan"))
+    out["RSI14"] = (100 - 100 / (1 + rs)).fillna(50)
     return out
-

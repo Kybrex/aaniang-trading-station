@@ -1,6 +1,25 @@
 # AANIANG Trading Station
 
-A standalone Streamlit research app that scans US equities with Yahoo Finance and ranks LONG or SHORT swing-trading setups. It is for education and research, not investment advice.
+A standalone Streamlit research app that scans US equities and supports both swing-trading and long-term investment research. It is for education and research, not investment advice.
+
+## V2 decision center
+
+The V2 interface installs twelve connected modules:
+
+1. Yahoo daily data with an optional Alpha Vantage fallback for single-symbol research.
+2. Backtests with expectancy, win rate, profit factor, total R, drawdown, slippage allowance, equity curve, and a 70/30 sample label.
+3. Weekly, daily, and four-hour trend alignment.
+4. Base breakout, breakdown, EMA20 pullback, volatility contraction, relative-strength breakout, post-event gap, and reversal checks.
+5. Portfolio heat, sector concentration, position correlation, and risk per position.
+6. Downloadable bracket/OCO order plans. These plans do not transmit broker orders.
+7. Telegram/SMTP alert delivery with duplicate-transition protection and an optional scheduled worker.
+8. Journal screenshots and analytics by setup, P/L, R multiple, win rate, and profit factor.
+9. Explainable quality, growth, valuation, profitability, leverage, and available annual financial history.
+10. Bear/base/bull discounted-cash-flow scenarios.
+11. Swing/investment positions, country, currency, dividends, target weights, and rebalance research actions.
+12. Symbol search, company/manual calendars, printable PDF, and a complete Excel workbook.
+
+The external score labels and rebalance actions are research classifications, not personalized recommendations. Verify all prices, events, and order details with your broker before acting.
 
 ## Windows setup
 
@@ -32,18 +51,28 @@ The upgraded app includes market-regime context (SPY, QQQ, and VIX), 20-day rela
 
 Each setup scores 0–100 from trend, EMA20 slope, 20/60-day momentum, relative volume, and setup quality. A breakout must actually cross the prior 20-day high/low with adequate volume and without being excessively extended. An EMA pullback must touch the EMA20 and close back in the trend direction. Plain trend alignment is no longer mislabeled as a setup. Entry is the latest adjusted daily close, not a guaranteed live quote; stop is 1.5 × ATR(14), and targets are 2R/3R. Position size equals account-risk dollars divided by risk per share, rounded down.
 
+## Optional secrets
+
+Copy `.streamlit/secrets.example.toml` to `.streamlit/secrets.toml` for local use, or enter the same names in Streamlit Cloud **Settings → Secrets**. Leave unused services blank. Never commit real keys.
+
+- `ALPHAVANTAGE_API_KEY`: optional daily single-symbol fallback and enhanced symbol search.
+- `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`: Telegram alerts.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and `ALERT_EMAIL`: email alerts.
+
+To evaluate alerts while the Streamlit page is closed, configure Windows Task Scheduler or cron to run `python alert_worker.py` periodically on an always-on machine. Streamlit cannot run background work while a free app is asleep. The worker sends only a new transition into `TRIGGERED`, not the same condition repeatedly.
+
 ## Reliability and validation
 
 Batch downloads use timeouts and empty/bad symbols are skipped. `data.symbol_frame()` explicitly handles yfinance's MultiIndex and one-ticker output shapes. `data.last_number()` extracts a scalar safely before any conversion, avoiding `float(Series)` errors.
 
 Before running the UI, validate source and imports with:
 
-    python -m compileall app.py data.py indicators.py scanner.py charts.py universe.py
-    python -c "import app, scanner, data, charts, universe; print('Imports passed')"
+    python -m compileall .
+    python -c "import app, advanced, investor, portfolio, reporting; print('Imports passed')"
     python -m unittest discover -s tests -v
 
 For a basic scanner smoke test (uses live Yahoo data):
 
     python -c "from scanner import ScanSettings,scan_market; r,n=scan_market(['AAPL','MSFT','NVDA'],ScanSettings('Both',0,10,1,1,25000,1,3),lambda *x:None); print(r[['Symbol','Score','Signal']]); print('Skipped:',n)"
 
-Yahoo Finance is an unofficial data source and can throttle or occasionally omit symbols. The app skips failed symbols, limits the default scan to 250 symbols, and stops early after repeated empty batches rather than hanging indefinitely.
+Yahoo Finance is an unofficial data source and can throttle or occasionally omit symbols. The app skips failed symbols, limits the default scan to 250 symbols, and stops early after repeated empty batches rather than hanging indefinitely. The Alpha Vantage fallback is intended for selected-symbol daily research, not thousands of fallback requests during a broad scan.

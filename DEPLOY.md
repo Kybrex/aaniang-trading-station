@@ -27,3 +27,9 @@ The AANIANG Trading Station icon will appear on your iPhone Home Screen. Opening
 ## Important
 
 Streamlit's free tier is suitable for a personal trial and can sleep after inactivity. The first visit after it sleeps may take a moment. For reliable broad-market scanning, choose a paid Streamlit plan or another always-on Python hosting service later.
+
+## Optional V2 secrets
+
+In Streamlit Cloud, open **Manage app → Settings → Secrets** and add only the services you use. Start from `.streamlit/secrets.example.toml`; replace placeholders privately and never paste real secrets into GitHub.
+
+After changing `requirements.txt` or Secrets, reboot the app. Position, watchlist, journal, and alert-state CSV files are local to the running server. Download the Excel/CSV backups regularly because free Streamlit storage is not a permanent database.

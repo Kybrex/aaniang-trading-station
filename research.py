@@ -70,16 +70,21 @@ def annotate_earnings(results: pd.DataFrame, days: int) -> pd.DataFrame:
     out["Earnings safe"] = [d is None or d > cutoff for d in dates]
     return out
 
-def backtest(symbol: str, side: str, days: int = 20) -> pd.DataFrame:
+def backtest(symbol: str, side: str, days: int = 20, setup: str = "EMA pullback") -> pd.DataFrame:
     frame = symbol_frame(download_batch([symbol], period="5y", timeout=25), symbol)
     if len(frame) < 220:
         frame = cached_frame(symbol, minimum_rows=220)
     if len(frame) < 220: return pd.DataFrame()
     df = add_indicators(frame).dropna().copy(); trades: list[dict] = []
+    df["PriorHigh20"]=df.High.rolling(20).max().shift(1);df["PriorLow20"]=df.Low.rolling(20).min().shift(1)
     for i in range(1, len(df) - days):
         row, previous = df.iloc[i], df.iloc[i - 1]
-        long = row.Close > row.SMA200 and row.EMA20 > row.EMA50 and row.Mom20 > 0 and row.Close > row.EMA20 and previous.Close <= previous.EMA20
-        short = row.Close < row.SMA200 and row.EMA20 < row.EMA50 and row.Mom20 < 0 and row.Close < row.EMA20 and previous.Close >= previous.EMA20
+        if "break" in setup.lower():
+            long = row.Close > row.SMA200 and row.EMA20 > row.EMA50 and row.Close > row.PriorHigh20 and previous.Close <= previous.PriorHigh20
+            short = row.Close < row.SMA200 and row.EMA20 < row.EMA50 and row.Close < row.PriorLow20 and previous.Close >= previous.PriorLow20
+        else:
+            long = row.Close > row.SMA200 and row.EMA20 > row.EMA50 and row.Mom20 > 0 and row.Low <= row.EMA20 < row.Close
+            short = row.Close < row.SMA200 and row.EMA20 < row.EMA50 and row.Mom20 < 0 and row.High >= row.EMA20 > row.Close
         if (side == "LONG" and not long) or (side == "SHORT" and not short): continue
         entry, risk = float(row.Close), float(row.ATR14 * 1.5)
         stop, target = (entry - risk, entry + 2 * risk) if side == "LONG" else (entry + risk, entry - 2 * risk)
