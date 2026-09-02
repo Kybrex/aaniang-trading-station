@@ -26,11 +26,11 @@ The initial broad scan can take several minutes. Start with the liquid fallback 
 
 ## Trading workspace additions
 
-The upgraded app includes market-regime context (SPY, QQQ, and VIX), 20-day relative strength versus SPY, a best-effort earnings-date safety filter, breakout and EMA-pullback labels, 20-day support/resistance, volume under the chart, capped position sizing and portfolio-heat guidance, a local watchlist, local alert reference conditions, a trade journal, and a transparent selected-symbol historical backtest. Local watchlist and journal data is saved under `user_data` beside the app. Alerts are visible when the app is open; they are not background notifications or broker orders.
+The upgraded app includes market-regime context (SPY, QQQ, and VIX), 20-day relative strength versus SPY, a best-effort earnings-date safety filter, validated breakout and EMA-pullback labels, 20-day support/resistance, volume under the chart, capped position sizing and portfolio-heat guidance, a local watchlist, local alert reference conditions, a trade journal, and a transparent selected-symbol historical backtest. Histories downloaded by the scanner are reused for charts and research instead of immediately requesting the same Yahoo data again. Local watchlist and journal data is saved under `user_data` beside the app. Alerts are visible when the app is open; they are not background notifications or broker orders.
 
 ## Setup scoring
 
-Each setup scores 0–100 from trend and momentum. Long criteria: price above SMA200, EMA20 above EMA50, price above EMA20, and positive 20/60-day momentum. Short criteria invert those conditions. Entry is latest close; stop is 1.5 × ATR(14), and targets are 2R/3R. Position size equals account-risk dollars divided by risk per share, rounded down.
+Each setup scores 0–100 from trend, EMA20 slope, 20/60-day momentum, relative volume, and setup quality. A breakout must actually cross the prior 20-day high/low with adequate volume and without being excessively extended. An EMA pullback must touch the EMA20 and close back in the trend direction. Plain trend alignment is no longer mislabeled as a setup. Entry is the latest adjusted daily close, not a guaranteed live quote; stop is 1.5 × ATR(14), and targets are 2R/3R. Position size equals account-risk dollars divided by risk per share, rounded down.
 
 ## Reliability and validation
 

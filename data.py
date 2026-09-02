@@ -4,6 +4,29 @@ from __future__ import annotations
 import pandas as pd
 import yfinance as yf
 
+_FRAME_CACHE: dict[str, pd.DataFrame] = {}
+
+
+def remember_frame(symbol: str, frame: pd.DataFrame) -> None:
+    """Keep the best in-process history so Streamlit reruns do not re-query Yahoo."""
+    if frame is None or frame.empty:
+        return
+    key = str(symbol).upper()
+    saved = _FRAME_CACHE.get(key)
+    if saved is None or len(frame) >= len(saved):
+        _FRAME_CACHE[key] = frame.copy()
+
+
+def cached_frame(symbol: str, minimum_rows: int = 1) -> pd.DataFrame:
+    """Return a defensive copy of cached OHLCV history when it is sufficient."""
+    frame = _FRAME_CACHE.get(str(symbol).upper())
+    return frame.copy() if frame is not None and len(frame) >= minimum_rows else pd.DataFrame()
+
+
+def clear_frame_cache() -> None:
+    """Test/support helper; normal users never need to clear the session cache."""
+    _FRAME_CACHE.clear()
+
 def _download(symbols: list[str], period: str, interval: str, timeout: int) -> pd.DataFrame:
     return yf.download(symbols, period=period, interval=interval, group_by="ticker", auto_adjust=True,
                        threads=True, progress=False, timeout=timeout, actions=False)
@@ -13,7 +36,11 @@ def download_batch(symbols: list[str], period: str = "1y", interval: str = "1d",
     try:
         # yfinance passes this timeout to its HTTP layer.  Avoid a worker thread here:
         # shutting down a timed-out executor can itself wait indefinitely.
-        return _download(symbols, period, interval, timeout)
+        raw = _download(symbols, period, interval, timeout)
+        if interval == "1d" and raw is not None and not raw.empty:
+            for symbol in symbols:
+                remember_frame(symbol, symbol_frame(raw, symbol))
+        return raw
     except Exception:
         return pd.DataFrame()
 

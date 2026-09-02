@@ -14,16 +14,45 @@ class ScanSettings:
 def candidate(symbol: str, frame: pd.DataFrame, s: ScanSettings) -> dict | None:
     if len(frame) < 205:
         return None
-    d = add_indicators(frame).iloc[-1]
+    indicators = add_indicators(frame)
+    d = indicators.iloc[-1]
     close, ema20, ema50, sma200, atr = (last_number(d[x]) for x in ["Close", "EMA20", "EMA50", "SMA200", "ATR14"])
     avg_vol, mom20, mom60 = (last_number(d[x]) for x in ["VolAvg20", "Mom20", "Mom60"])
     if any(x is None or x <= 0 for x in [close, ema20, ema50, sma200, atr, avg_vol]) or mom20 is None or mom60 is None:
         return None
     if close < s.min_price or avg_vol < s.min_volume:
         return None
-    long_score = (25 if close > sma200 else 0) + (20 if ema20 > ema50 else 0) + (20 if close > ema20 else 0) + (20 if mom20 > 0 else 0) + (15 if mom60 > 0 else 0)
-    short_score = (25 if close < sma200 else 0) + (20 if ema20 < ema50 else 0) + (20 if close < ema20 else 0) + (20 if mom20 < 0 else 0) + (15 if mom60 < 0 else 0)
-    side, score = ("LONG", long_score) if long_score >= short_score else ("SHORT", short_score)
+    current_open = last_number(d["Open"]); current_high = last_number(d["High"]); current_low = last_number(d["Low"]); current_volume = last_number(d["Volume"])
+    ema20_past = last_number(indicators["EMA20"].iloc[-11])
+    if any(x is None for x in [current_open, current_high, current_low, current_volume, ema20_past]):
+        return None
+    previous = frame.iloc[:-1].tail(20)
+    support = last_number(previous["Low"].min())
+    resistance = last_number(previous["High"].max())
+    if support is None or resistance is None:
+        return None
+
+    long_trend = close > sma200 and ema20 > ema50 and ema20 > ema20_past
+    short_trend = close < sma200 and ema20 < ema50 and ema20 < ema20_past
+    volume_ratio = current_volume / avg_vol
+    long_breakout = long_trend and close > resistance and close <= resistance + .75 * atr and volume_ratio >= .8
+    short_breakout = short_trend and close < support and close >= support - .75 * atr and volume_ratio >= .8
+    long_pullback = long_trend and current_low <= ema20 and close > ema20 and close > current_open
+    short_pullback = short_trend and current_high >= ema20 and close < ema20 and close < current_open
+    long_valid = long_breakout or long_pullback
+    short_valid = short_breakout or short_pullback
+    if not long_valid and not short_valid:
+        return None
+    side = "LONG" if long_valid and not short_valid else "SHORT" if short_valid and not long_valid else ("LONG" if mom20 >= 0 else "SHORT")
+
+    aligned_mom20 = mom20 if side == "LONG" else -mom20
+    aligned_mom60 = mom60 if side == "LONG" else -mom60
+    trend_points = 55
+    momentum_points = min(15, max(0, aligned_mom20) * .75) + min(10, max(0, aligned_mom60) * .25)
+    volume_points = min(10, max(0, (volume_ratio - .5) * 10))
+    setup_points = 15
+    extension_penalty = min(12, max(0, aligned_mom20 - 20) * .5)
+    score = min(100, int(round(trend_points + momentum_points + volume_points + setup_points - extension_penalty)))
     if s.direction != "Both" and side != s.direction.upper():
         return None
     if score < s.min_score:
@@ -36,12 +65,10 @@ def candidate(symbol: str, frame: pd.DataFrame, s: ScanSettings) -> dict | None:
     target1 = entry + 2 * risk if side == "LONG" else entry - 2 * risk
     target2 = entry + 3 * risk if side == "LONG" else entry - 3 * risk
     shares = max(0, math.floor((s.equity * (s.risk_pct / 100)) / risk))
-    previous = frame.iloc[:-1].tail(20)
-    support = last_number(previous["Low"].min())
-    resistance = last_number(previous["High"].max())
-    setup_type = "Breakout" if (side == "LONG" and entry >= resistance * .985) or (side == "SHORT" and entry <= support * 1.015) else "EMA pullback"
+    setup_type = "Breakout" if (long_breakout if side == "LONG" else short_breakout) else "EMA pullback"
     plan = f"{side} {setup_type}: enter near ${entry:.2f}; stop ${stop:.2f}; targets ${target1:.2f}/${target2:.2f}."
-    return {"Symbol": symbol, "Score": score, "Signal": side, "Entry": entry, "Stop": stop, "Risk/Share": risk,
+    data_date = pd.Timestamp(frame.index[-1]).date().isoformat()
+    return {"Symbol": symbol, "Data date": data_date, "Score": score, "Signal": side, "Entry": entry, "Stop": stop, "Risk/Share": risk,
             "20D Momentum": mom20, "60D Momentum": mom60, "Shares": shares, "Target 1": target1, "Target 2": target2,
             "Support": support, "Resistance": resistance, "Setup": setup_type, "Trade plan": plan}
 

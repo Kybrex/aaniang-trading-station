@@ -1,11 +1,13 @@
 from __future__ import annotations
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from data import download_batch, symbol_frame
+from data import cached_frame, download_batch, symbol_frame
 from indicators import add_indicators
 
 def build_chart(symbol: str, setup: object) -> tuple[go.Figure | None, str]:
-    frame = symbol_frame(download_batch([symbol], period="1y", timeout=25), symbol)
+    frame = cached_frame(symbol, minimum_rows=80)
+    if frame.empty:
+        frame = symbol_frame(download_batch([symbol], period="1y", timeout=25), symbol)
     if frame.empty: return None, "Yahoo Finance did not return chart data for this symbol."
     df = add_indicators(frame).tail(180)
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[.76, .24], vertical_spacing=.03)

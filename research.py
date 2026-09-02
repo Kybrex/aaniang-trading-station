@@ -5,7 +5,7 @@ from datetime import date, timedelta
 import pandas as pd
 import yfinance as yf
 
-from data import download_batch, last_number, symbol_frame
+from data import cached_frame, download_batch, last_number, symbol_frame
 from indicators import add_indicators
 
 def market_regime() -> dict[str, str]:
@@ -13,12 +13,13 @@ def market_regime() -> dict[str, str]:
     output: dict[str, str] = {}
     for symbol, label in [("SPY", "S&P 500"), ("QQQ", "Nasdaq 100"), ("^VIX", "VIX")]:
         frame = symbol_frame(raw, symbol)
-        if frame.empty or len(frame) < 200:
+        if frame.empty or (symbol != "^VIX" and len(frame) < 200):
             output[label] = "Unavailable"
             continue
         df = add_indicators(frame)
-        close, sma = last_number(df["Close"].iloc[-1]), last_number(df["SMA200"].iloc[-1])
-        if close is None or sma is None:
+        close = last_number(df["Close"].iloc[-1])
+        sma = last_number(df["SMA200"].iloc[-1]) if symbol != "^VIX" else None
+        if close is None or (symbol != "^VIX" and sma is None):
             output[label] = "Unavailable"
         elif symbol == "^VIX":
             output[label] = f"{close:.1f} ({'elevated' if close >= 22 else 'calm'})"
@@ -28,15 +29,16 @@ def market_regime() -> dict[str, str]:
 
 def add_relative_strength(results: pd.DataFrame) -> pd.DataFrame:
     if results.empty: return results
-    raw = download_batch(results["Symbol"].tolist() + ["SPY"], period="4mo", timeout=25)
-    benchmark = symbol_frame(raw, "SPY")
+    benchmark = cached_frame("SPY", minimum_rows=21)
+    if benchmark.empty:
+        benchmark = symbol_frame(download_batch(["SPY"], period="4mo", timeout=25), "SPY")
     if len(benchmark) < 21:
         results["RS vs SPY"] = None
         return results
     spy_return = benchmark["Close"].iloc[-1] / benchmark["Close"].iloc[-21] - 1
     values: list[float | None] = []
     for symbol in results["Symbol"]:
-        frame = symbol_frame(raw, symbol)
+        frame = cached_frame(symbol, minimum_rows=21)
         values.append(round(((frame["Close"].iloc[-1] / frame["Close"].iloc[-21] - 1) - spy_return) * 100, 2) if len(frame) >= 21 else None)
     results = results.copy(); results["RS vs SPY"] = values
     return results
@@ -70,7 +72,9 @@ def annotate_earnings(results: pd.DataFrame, days: int) -> pd.DataFrame:
 
 def backtest(symbol: str, side: str, days: int = 20) -> pd.DataFrame:
     frame = symbol_frame(download_batch([symbol], period="5y", timeout=25), symbol)
-    if len(frame) < 260: return pd.DataFrame()
+    if len(frame) < 220:
+        frame = cached_frame(symbol, minimum_rows=220)
+    if len(frame) < 220: return pd.DataFrame()
     df = add_indicators(frame).dropna().copy(); trades: list[dict] = []
     for i in range(1, len(df) - days):
         row, previous = df.iloc[i], df.iloc[i - 1]
