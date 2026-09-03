@@ -6,7 +6,7 @@ from charts import build_chart
 from fundamentals import ValuationAssumptions, default_growth, financial_history, intrinsic_value, load_company, quality_score
 from research import add_relative_strength, annotate_earnings, backtest, evaluate_alerts, market_regime
 from scanner import ScanSettings, scan_market
-from storage import add_journal, add_watch, journal, save_attachment, watchlist
+from storage import add_journal, add_watch, journal, save_attachment, save_watchlist, watchlist
 from universe import load_universe
 from value_screener import scan_value
 import v2_ui
@@ -114,9 +114,42 @@ st.divider()
 watch_tab, journal_tab = st.tabs(["Watchlist and alerts", "Trade journal"])
 with watch_tab:
     st.caption("Local alerts are reference markers. The app cannot send background notifications while closed.")
-    saved_watchlist=watchlist()
-    if st.button("Refresh watchlist prices and alerts",disabled=saved_watchlist.empty): st.session_state.evaluated_watchlist=evaluate_alerts(saved_watchlist)
-    st.dataframe(st.session_state.get("evaluated_watchlist",saved_watchlist), width="stretch", hide_index=True)
+    saved_watchlist = watchlist()
+    action_col, edit_col = st.columns([1, 1])
+    with action_col:
+        if st.button("Refresh watchlist prices and alerts", disabled=saved_watchlist.empty):
+            st.session_state.evaluated_watchlist = evaluate_alerts(saved_watchlist)
+    with edit_col:
+        edit_watchlist = st.toggle("Edit watchlist", value=False, key="edit_watchlist_toggle")
+    if edit_watchlist:
+        st.caption("Edit cells directly. Use the + control to add rows or the row menu to delete them, then save.")
+        edited_watchlist = st.data_editor(
+            saved_watchlist,
+            width="stretch",
+            hide_index=True,
+            num_rows="dynamic",
+            key="watchlist_editor",
+            column_config={
+                "Symbol": st.column_config.TextColumn("Symbol", required=True, help="Ticker symbol"),
+                "Signal": st.column_config.SelectboxColumn("Signal", options=["LONG", "SHORT", "WATCH"], required=True),
+                "Entry": st.column_config.NumberColumn("Entry", min_value=0.0, format="$%.2f"),
+                "Stop": st.column_config.NumberColumn("Stop", min_value=0.0, format="$%.2f"),
+                "Target 1": st.column_config.NumberColumn("Target 1", min_value=0.0, format="$%.2f"),
+                "Target 2": st.column_config.NumberColumn("Target 2", min_value=0.0, format="$%.2f"),
+                "Alert": st.column_config.TextColumn("Alert", help="Example: Entry reached"),
+            },
+        )
+        save_col, count_col = st.columns([1, 2])
+        with save_col:
+            if st.button("Save watchlist changes", type="primary", icon=":material/save:"):
+                save_watchlist(edited_watchlist)
+                st.session_state.pop("evaluated_watchlist", None)
+                st.success("Watchlist changes saved.")
+                st.rerun()
+        with count_col:
+            st.caption(f"{len(edited_watchlist)} rows in the editor")
+    else:
+        st.dataframe(st.session_state.get("evaluated_watchlist", saved_watchlist), width="stretch", hide_index=True)
 with journal_tab:
     with st.form("journal_form", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
