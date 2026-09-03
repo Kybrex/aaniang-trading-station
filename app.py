@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 from charts import build_chart
+from fundamentals import ValuationAssumptions, default_growth, financial_history, intrinsic_value, load_company, quality_score
 from research import add_relative_strength, annotate_earnings, backtest, evaluate_alerts, market_regime
 from scanner import ScanSettings, scan_market
 from storage import add_journal, add_watch, journal, save_attachment, watchlist
@@ -144,5 +145,101 @@ if st.button("Find 25-50% undervalued moat candidates", type="primary"):
 value_results = st.session_state.value_results
 if not value_results.empty:
     st.dataframe(value_results, width="stretch", hide_index=True, column_config={"Price": st.column_config.NumberColumn(format="$%.2f"), "Analyst fair value": st.column_config.NumberColumn(format="$%.2f"), "Upside": st.column_config.NumberColumn(format="%.1f%%"), "ROE": st.column_config.NumberColumn(format="%.1f%%"), "Operating margin": st.column_config.NumberColumn(format="%.1f%%")})
+
+st.divider()
+st.header("AANIANG company intelligence", anchor="company-intelligence")
+st.caption("Explainable quality and valuation research using Yahoo Finance. Missing fields receive no points; estimates are not investment advice.")
+
+@st.cache_data(ttl=1800, max_entries=25, show_spinner=False)
+def get_company_bundle(symbol: str) -> dict:
+    return load_company(symbol)
+
+with st.form("company_lookup"):
+    research_symbol = st.text_input("Company symbol", value="AAPL", placeholder="AAPL").strip().upper()
+    analyze_company = st.form_submit_button("Analyze company", type="primary", icon=":material/analytics:")
+if analyze_company:
+    with st.spinner(f"Loading financial statements for {research_symbol}..."):
+        try:
+            st.session_state.company_bundle = get_company_bundle(research_symbol)
+            st.session_state.company_error = ""
+        except ValueError as error:
+            st.session_state.company_error = str(error)
+if st.session_state.get("company_error"):
+    st.error(st.session_state.company_error)
+
+bundle = st.session_state.get("company_bundle")
+if bundle:
+    info = bundle["info"]; symbol = bundle["symbol"]
+    score, evidence = quality_score(bundle)
+    current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+    company_name = info.get("longName") or info.get("shortName") or symbol
+    st.subheader(f"{company_name} ({symbol})")
+    with st.container(horizontal=True):
+        st.metric("Quality score", f"{score}/100", border=True)
+        st.metric("Price", f"${float(current_price):,.2f}" if current_price else "Unavailable", border=True)
+        st.metric("Market cap", f"${float(info.get('marketCap'))/1e9:,.1f}B" if info.get("marketCap") else "Unavailable", border=True)
+        st.metric("Sector", info.get("sector", "Unavailable"), border=True)
+
+    intelligence_view = st.segmented_control("Research section", ["Overview", "Quality", "Financials", "Valuation"], default="Overview", key="intelligence_view")
+    if intelligence_view == "Overview":
+        with st.container(border=True):
+            st.markdown("**Business overview**")
+            st.write(info.get("longBusinessSummary") or "Business description is unavailable from Yahoo Finance.")
+        overview = pd.DataFrame([
+            {"Metric": "Industry", "Value": info.get("industry", "Unavailable")},
+            {"Metric": "Employees", "Value": f"{int(info['fullTimeEmployees']):,}" if info.get("fullTimeEmployees") else "Unavailable"},
+            {"Metric": "Trailing P/E", "Value": f"{float(info['trailingPE']):.2f}" if info.get("trailingPE") else "Unavailable"},
+            {"Metric": "Forward P/E", "Value": f"{float(info['forwardPE']):.2f}" if info.get("forwardPE") else "Unavailable"},
+            {"Metric": "Dividend yield", "Value": f"{float(info['dividendYield']):.2%}" if info.get("dividendYield") else "Unavailable"},
+            {"Metric": "Analyst target", "Value": f"${float(info['targetMeanPrice']):.2f}" if info.get("targetMeanPrice") else "Unavailable"},
+        ])
+        st.dataframe(overview, hide_index=True, width="stretch")
+        history = bundle["history"]
+        if not history.empty:
+            st.line_chart(history[["Close"]].rename(columns={"Close": symbol}), height=360)
+    elif intelligence_view == "Quality":
+        st.progress(score / 100, text=f"AANIANG Quality Score: {score}/100")
+        st.dataframe(evidence, hide_index=True, width="stretch", column_config={"Points": st.column_config.ProgressColumn("Points earned", min_value=0, max_value=15), "Maximum": st.column_config.NumberColumn("Maximum")})
+        st.caption("Profitability 25 points · Growth 20 · Cash flow 20 · Balance sheet 20 · Predictability 15")
+    elif intelligence_view == "Financials":
+        statements = financial_history(bundle)
+        if statements.empty:
+            st.warning("Annual financial statements are unavailable for this symbol.")
+        else:
+            chart_metric = st.selectbox("Chart metric", statements.columns.tolist(), key="financial_metric")
+            st.line_chart(statements[[chart_metric]], height=340)
+            st.dataframe(statements.reset_index(names="Year"), hide_index=True, width="stretch", column_config={column: st.column_config.NumberColumn(column, format="$%.0f") for column in statements.columns})
+    else:
+        estimated_growth = default_growth(bundle)
+        st.caption("Adjust the assumptions to test uncertainty. Growth and terminal growth are capped to keep the model conservative.")
+        scenario = st.segmented_control("Scenario", ["Bear", "Base", "Bull"], default="Base", key="valuation_scenario")
+        presets = {
+            "Bear": (max(0.0, estimated_growth - .04), .11, .02, 15.0),
+            "Base": (estimated_growth, .09, .025, 20.0),
+            "Bull": (min(.25, estimated_growth + .04), .08, .03, 25.0),
+        }
+        preset = presets[scenario]
+        with st.form("valuation_assumptions"):
+            growth = st.number_input("Annual growth (%)", 0.0, 25.0, preset[0] * 100, .5) / 100
+            discount = st.number_input("Required return / discount rate (%)", 6.0, 20.0, preset[1] * 100, .5) / 100
+            terminal = st.number_input("Terminal growth (%)", 0.0, 4.0, preset[2] * 100, .25) / 100
+            multiple = st.number_input("Future earnings multiple", 5.0, 40.0, preset[3], 1.0)
+            calculate = st.form_submit_button("Calculate intrinsic value", type="primary", icon=":material/calculate:")
+        if calculate or "valuation_result" not in st.session_state or st.session_state.get("valuation_symbol") != symbol:
+            st.session_state.valuation_result = intrinsic_value(bundle, ValuationAssumptions(growth, discount, terminal, multiple))
+            st.session_state.valuation_symbol = symbol
+        valuation = st.session_state.valuation_result
+        fair, upside = valuation["fair_value"], valuation["margin_of_safety"]
+        with st.container(horizontal=True):
+            st.metric("Current price", f"${valuation['price']:,.2f}" if valuation["price"] else "Unavailable", border=True)
+            st.metric("Blended fair value", f"${fair:,.2f}" if fair else "Unavailable", border=True)
+            st.metric("Margin of safety", f"{upside:,.1f}%" if upside is not None else "Unavailable", border=True)
+        methods = pd.DataFrame([{"Method": method, "Estimated value": value} for method, value in valuation["methods"].items()])
+        if methods.empty:
+            st.warning("Yahoo Finance did not provide enough positive cash-flow, earnings, or analyst data for this valuation.")
+        else:
+            st.dataframe(methods, hide_index=True, width="stretch", column_config={"Estimated value": st.column_config.NumberColumn(format="$%.2f")})
+            st.bar_chart(methods.set_index("Method"), horizontal=True)
+        st.info("Valuation is a range-building aid, not a price prediction. Review filings and test several scenarios before making a decision.", icon=":material/info:")
 
 v2_ui.render(results, equity)
