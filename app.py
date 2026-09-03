@@ -10,6 +10,7 @@ from storage import add_journal, add_watch, journal, save_attachment, watchlist
 from universe import load_universe
 from value_screener import scan_value
 import v2_ui
+import v3_ui
 
 st.set_page_config(page_title="AANIANG Trading Station", page_icon="S", layout="wide")
 logo_col, title_col = st.columns([1, 14], vertical_alignment="center")
@@ -243,3 +244,5 @@ if bundle:
         st.info("Valuation is a range-building aid, not a price prediction. Review filings and test several scenarios before making a decision.", icon=":material/info:")
 
 v2_ui.render(results, equity)
+
+v3_ui.render()
