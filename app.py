@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 from charts import build_chart
+from technical_chart import build_company_technical_chart, technical_data, technical_snapshot
 from fundamentals import ValuationAssumptions, default_growth, financial_history, intrinsic_value, load_company, quality_score
 from research import add_relative_strength, annotate_earnings, backtest, evaluate_alerts, market_regime
 from scanner import ScanSettings, scan_market
@@ -248,7 +249,7 @@ if bundle:
         st.metric("Market cap", f"${float(info.get('marketCap'))/1e9:,.1f}B" if info.get("marketCap") else "Unavailable", border=True)
         st.metric("Sector", info.get("sector", "Unavailable"), border=True)
 
-    intelligence_view = st.segmented_control("Research section", ["Overview", "Quality", "Financials", "Valuation"], default="Overview", key="intelligence_view")
+    intelligence_view = st.segmented_control("Research section", ["Overview", "Technical", "Quality", "Financials", "Valuation"], default="Overview", key="intelligence_view")
     if intelligence_view == "Overview":
         with st.container(border=True):
             st.markdown("**Business overview**")
@@ -265,6 +266,41 @@ if bundle:
         history = bundle["history"]
         if not history.empty:
             st.line_chart(history[["Close"]].rename(columns={"Close": symbol}), height=360)
+    elif intelligence_view == "Technical":
+        history = bundle["history"]
+        if history.empty or not {"Open", "High", "Low", "Close", "Volume"}.issubset(history.columns):
+            st.warning("OHLCV price history is unavailable for this symbol.")
+        else:
+            st.caption("Interactive candlesticks with moving averages, volume, momentum, volatility, zoom, pan, and unified hover data.")
+            setting_a, setting_b, setting_c = st.columns([1, 1.5, 1])
+            with setting_a:
+                chart_period = st.selectbox("Chart period", ["3 months", "6 months", "1 year", "2 years", "5 years"], index=2, key="company_chart_period")
+            with setting_b:
+                overlays = st.multiselect("Moving averages", ["EMA 21", "SMA 20", "SMA 50", "SMA 200"], default=["EMA 21", "SMA 50", "SMA 200"], key="company_chart_mas")
+            with setting_c:
+                oscillator = st.selectbox("Lower indicator", ["RSI 14", "MACD", "None"], key="company_chart_oscillator")
+            sessions = {"3 months": 66, "6 months": 132, "1 year": 252, "2 years": 504, "5 years": 1260}
+            indicators = technical_data(history)
+            visible = indicators.tail(sessions[chart_period])
+            snapshot = technical_snapshot(indicators)
+            metric_cols = st.columns(5)
+            metric_cols[0].metric("Trend", snapshot["Trend"], border=True)
+            metric_cols[1].metric("RSI 14", f"{snapshot['RSI']:.1f}", snapshot["Momentum"], border=True)
+            metric_cols[2].metric("MACD signal", snapshot["MACD"], border=True)
+            metric_cols[3].metric("ATR 14", f"${snapshot['ATR']:.2f}", border=True)
+            metric_cols[4].metric("Last close", f"${snapshot['Price']:.2f}", border=True)
+            technical_figure = build_company_technical_chart(visible, symbol, overlays, oscillator)
+            st.plotly_chart(
+                technical_figure,
+                width="stretch",
+                config={"displaylogo": False, "scrollZoom": True, "modeBarButtonsToRemove": ["lasso2d", "select2d"]},
+                key=f"company_technical_{symbol}_{chart_period}_{oscillator}",
+            )
+            with st.expander("Latest technical indicator data"):
+                technical_columns = ["Close", "Volume", "EMA 21", "SMA 20", "SMA 50", "SMA 200", "RSI 14", "MACD", "MACD signal", "ATR 14"]
+                latest_technical = indicators[technical_columns].tail(20).reset_index()
+                st.dataframe(latest_technical, hide_index=True, width="stretch")
+                st.download_button("Download technical data", indicators[technical_columns].to_csv(), f"{symbol}-technical-analysis.csv", "text/csv")
     elif intelligence_view == "Quality":
         st.progress(score / 100, text=f"AANIANG Quality Score: {score}/100")
         st.dataframe(evidence, hide_index=True, width="stretch", column_config={"Points": st.column_config.ProgressColumn("Points earned", min_value=0, max_value=15), "Maximum": st.column_config.NumberColumn("Maximum")})
