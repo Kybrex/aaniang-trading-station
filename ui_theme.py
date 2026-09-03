@@ -146,6 +146,7 @@ input, textarea { color: var(--aa-ink) !important; }
   border-radius: 5px;
   padding: 0.22rem;
 }
+[data-baseweb="tab-highlight"] { background-color: var(--aa-teal) !important; }
 [data-baseweb="tab"] {
   height: 2.45rem;
   border-radius: 4px;
