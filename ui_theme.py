@@ -38,7 +38,7 @@ html, body, [class*="css"] {
 
 .block-container {
   max-width: 1580px;
-  padding-top: 1.35rem;
+  padding-top: 3.9rem;
   padding-bottom: 5rem;
 }
 
@@ -113,6 +113,14 @@ hr { border-color: #c7d0d9 !important; margin: 1.25rem 0 !important; }
   border-color: #173f67 !important;
   background: linear-gradient(180deg, #3274ab, #245a8d) !important;
 }
+[data-testid="stBaseButton-primary"], [data-testid="stFormSubmitButton"] button {
+  color: #fff !important;
+  border-color: #173f67 !important;
+  background: linear-gradient(180deg, #3274ab, #245a8d) !important;
+}
+[data-testid="stBaseButton-primary"] p, [data-testid="stFormSubmitButton"] button p {
+  color: #fff !important;
+}
 
 [data-baseweb="input"] > div, [data-baseweb="select"] > div,
 [data-baseweb="textarea"] > div, [data-testid="stNumberInputContainer"] {
@@ -150,6 +158,11 @@ input, textarea { color: var(--aa-ink) !important; }
   color: #fff !important;
   background: var(--aa-blue) !important;
 }
+button[role="tab"][aria-selected="true"] {
+  color: #fff !important;
+  background: var(--aa-blue) !important;
+}
+button[role="tab"][aria-selected="true"] p { color: #fff !important; }
 
 [data-testid="stAlert"] { border-radius: 5px; border-width: 1px; }
 [data-testid="stProgress"] > div > div { background-color: var(--aa-teal) !important; }
@@ -173,7 +186,7 @@ input, textarea { color: var(--aa-ink) !important; }
 }
 
 @media (max-width: 720px) {
-  .block-container { padding: 0.75rem 0.6rem 4rem; }
+  .block-container { padding: 3.45rem 0.6rem 4rem; }
   h1 { font-size: 1.55rem !important; }
   h2 { font-size: 1.02rem !important; padding: .55rem .65rem !important; }
   h3 { font-size: .96rem !important; }
