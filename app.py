@@ -141,35 +141,34 @@ with watch_tab:
                 "Alert": st.column_config.TextColumn("Alert", help="Example: Entry reached"),
             },
         )
-        save_col, count_col = st.columns([1, 2])
-        with save_col:
-            if st.button("Save watchlist changes", type="primary", icon=":material/save:"):
-                save_watchlist(edited_watchlist)
-                st.session_state.pop("evaluated_watchlist", None)
-                st.success("Watchlist changes saved.")
-                st.rerun()
-        with count_col:
-            st.caption(f"{len(edited_watchlist)} rows in the editor")
         delete_options = sorted(
             symbol for symbol in edited_watchlist.get("Symbol", pd.Series(dtype=str)).fillna("").astype(str).str.strip().str.upper().unique()
             if symbol
         )
-        with st.container(border=True):
-            st.markdown("**Delete a watchlist row**")
+        save_col, symbol_col, delete_col = st.columns([1.5, 1.15, 0.65], vertical_alignment="bottom")
+        with save_col:
+            if st.button("Save watchlist changes", type="primary", icon=":material/save:", width="stretch"):
+                save_watchlist(edited_watchlist)
+                st.session_state.pop("evaluated_watchlist", None)
+                st.session_state.watchlist_notice = "Watchlist changes saved."
+                st.rerun()
+        with symbol_col:
             delete_symbol = st.selectbox(
-                "Select symbol to delete",
+                "Delete row",
                 delete_options,
                 index=None,
-                placeholder="Choose a symbol",
+                placeholder="Ticker",
                 disabled=not delete_options,
                 key="watchlist_delete_symbol",
+                label_visibility="collapsed",
             )
-            st.caption("The selected row is removed immediately from the saved watchlist.")
+        with delete_col:
             if st.button(
-                "Delete selected row",
+                "Delete",
                 icon=":material/delete:",
                 disabled=not delete_symbol,
                 key="watchlist_delete_button",
+                width="stretch",
             ):
                 remaining = edited_watchlist[
                     edited_watchlist["Symbol"].fillna("").astype(str).str.strip().str.upper() != delete_symbol
@@ -178,6 +177,7 @@ with watch_tab:
                 st.session_state.pop("evaluated_watchlist", None)
                 st.session_state.watchlist_notice = f"{delete_symbol} was deleted from the watchlist."
                 st.rerun()
+        st.caption(f"{len(edited_watchlist)} rows · Choose a ticker beside Save, then tap Delete.")
     else:
         st.dataframe(st.session_state.get("evaluated_watchlist", saved_watchlist), width="stretch", hide_index=True)
 with journal_tab:
