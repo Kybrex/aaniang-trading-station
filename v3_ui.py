@@ -7,6 +7,7 @@ import plotly.express as px
 import streamlit as st
 
 from v3_features import PRESETS, apply_screen, load_notes, load_snapshot, peer_rank, portfolio_health, research_brief, save_note, scan_symbols
+from v3_pdf import research_pdf
 
 
 DEFAULT_SYMBOLS = "AAPL, MSFT, NVDA, AMZN, GOOGL, META, AVGO, JPM, V, MA, COST, WMT, KO, PEP, UNH, LLY, XOM, CVX, CAT, GE, PLTR, NFLX, AMD, CRM, ORCL, HD, NKE, DIS, BA, TSLA"
@@ -143,8 +144,15 @@ def render() -> None:
             with st.container(border=True):
                 st.markdown(f"**{heading}**")
                 for point in points: st.write(f"• {point}")
-        report_text = f"# {symbol} research brief\n\n" + "\n\n".join(f"## {heading}\n" + "\n".join(f"- {point}" for point in points) for heading, points in brief.items())
-        st.download_button("Download research brief", report_text, f"{symbol}-research.md", "text/markdown")
+        company = str(row.get("Company") or symbol)
+        report_pdf = research_pdf(symbol, company, brief)
+        st.download_button(
+            "Download research report (PDF)",
+            report_pdf,
+            f"{symbol}-research-report.pdf",
+            "application/pdf",
+            icon=":material/picture_as_pdf:",
+        )
 
     elif section.startswith("6"):
         st.subheader("Industry peer discovery")
