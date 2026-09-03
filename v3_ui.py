@@ -60,6 +60,13 @@ def render() -> None:
     if universe.empty:
         st.info("Load the research universe once, then use all nine modules without downloading the same data again.")
 
+    st.markdown("**Quick access**")
+    with st.container(horizontal=True):
+        if st.button("8 · Portfolio health", icon=":material/monitoring:", width="stretch"):
+            st.session_state.v3_section = "8 · Portfolio health"
+        if st.button("9 · Professional data", icon=":material/database:", width="stretch"):
+            st.session_state.v3_section = "9 · Professional data"
+
     section = st.selectbox("V3 module", [
         "1 · Value Radar", "2 · Stock comparison", "3 · Advanced screener", "4 · Screening strategies",
         "5 · AI research report", "6 · Industry peers", "7 · Notes and checklist",
