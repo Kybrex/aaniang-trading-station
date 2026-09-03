@@ -131,17 +131,34 @@ def render() -> None:
     elif section.startswith("4"):
         st.subheader("Paper-Trading Portfolio")
         st.caption("Practice ledger only. No order is sent to a broker.")
-        if not symbols: return
-        with st.form("v4_trade", border=True):
+        if symbols:
             symbol = st.selectbox("Symbol", symbols, key="v4_trade_symbol")
+        else:
+            symbol = st.text_input("Symbol", "AAPL", key="v4_trade_ticker").strip().upper()
+            st.caption("V3 is not loaded. Enter any valid ticker and load its current research price.")
+        if st.button("Load current price", key="v4_trade_quote_button"):
+            with st.spinner(f"Loading {symbol}..."):
+                quote = load_snapshot(symbol)
+            if quote:
+                st.session_state.setdefault("v4_paper_prices", {})[symbol] = float(quote.get("Price") or 0)
+                st.success(f"Loaded {symbol} at ${st.session_state.v4_paper_prices[symbol]:,.2f}.")
+            else:
+                st.warning("No current price was returned. You can still enter a simulated execution price manually.")
+        stored_prices = st.session_state.setdefault("v4_paper_prices", {})
+        market_price = float(universe.loc[universe.Symbol == symbol, "Price"].iloc[0]) if symbols and symbol in symbols else float(stored_prices.get(symbol, 100.0))
+        with st.form("v4_trade", border=True):
             side = st.segmented_control("Side", ["BUY", "SELL"], default="BUY")
             shares = st.number_input("Shares", min_value=0.01, value=1.0)
-            market_price = float(universe.loc[universe.Symbol == symbol, "Price"].iloc[0])
-            price = st.number_input("Execution price", min_value=0.01, value=max(market_price, 0.01))
+            price = st.number_input("Execution price", min_value=0.01, value=max(market_price, 0.01), key="v4_execution_price")
             if st.form_submit_button("Record simulated order", type="primary"):
                 save_trade({"Time": datetime.now(timezone.utc).isoformat(), "Symbol": symbol, "Side": side, "Shares": shares, "Price": price}); st.success("Simulated order recorded.")
-        prices = dict(zip(universe.Symbol, universe.Price))
-        trades = load_trades(); positions = paper_positions(trades, prices)
+                stored_prices[symbol] = price
+        prices = dict(zip(universe.Symbol, universe.Price)) if not universe.empty else {}
+        prices.update(stored_prices)
+        trades = load_trades()
+        for trade in trades:
+            prices.setdefault(trade["Symbol"], float(trade["Price"]))
+        positions = paper_positions(trades, prices)
         if trades: st.dataframe(pd.DataFrame(trades), hide_index=True, width="stretch")
         if not positions.empty:
             st.markdown("**Open positions and performance**"); st.dataframe(positions, hide_index=True, width="stretch")
