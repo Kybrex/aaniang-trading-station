@@ -11,6 +11,7 @@ from universe import load_universe
 from value_screener import scan_value
 import v2_ui
 import v3_ui
+import v4_ui
 
 st.set_page_config(page_title="AANIANG Trading Station", page_icon="S", layout="wide")
 logo_col, title_col = st.columns([1, 14], vertical_alignment="center")
@@ -246,3 +247,5 @@ if bundle:
 v2_ui.render(results, equity)
 
 v3_ui.render()
+
+v4_ui.render()
