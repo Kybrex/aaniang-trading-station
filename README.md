@@ -111,3 +111,26 @@ Operational notes:
 - SEC requests use the official keyless EDGAR data API. Enter a real contact email in the module so the User-Agent follows SEC automated-access guidance.
 - Account backup is portable across devices. Automatic hosted sync and authentication remain unconnected until a database/auth provider is configured.
 - Optimization and Monte Carlo results are historical estimates, not forecasts or investment advice.
+
+
+## V5 Institutional Research Suite
+
+V5 provides nine quick-access modules:
+
+1. Earnings Call Analyzer for user-supplied transcript tone, guidance, risk, and highlight extraction
+2. Insider Trading Tracker
+3. Institutional and mutual-fund ownership
+4. Dividend safety, growth, yield, and income analysis
+5. Company Catalyst Tracker with calendar events and recent source links
+6. Sector Rotation Dashboard using US sector ETFs
+7. Bear/Base/Bull Stock Scenario Lab
+8. FIFO Portfolio Tax Center with CSV import and tax-lot export
+9. Transparent Management Quality proxy
+
+Important notes:
+
+- Upload or paste only transcripts you are authorized to use.
+- Insider, holder, dividend, event, headline, and sector data depend on Yahoo Finance availability and may be delayed or incomplete.
+- Scenario values are user-controlled estimates, not price forecasts.
+- Tax calculations are educational FIFO estimates and do not replace brokerage tax records or professional advice.
+- The management score is a quantitative proxy based on public metrics, not an assessment of character or non-public board information.
