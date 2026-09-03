@@ -14,6 +14,7 @@ import v2_ui
 import v3_ui
 import v4_ui
 import v5_ui
+import v6_ui
 from ui_theme import apply_theme
 
 st.set_page_config(page_title="AANIANG Trading Station", page_icon="S", layout="wide")
@@ -353,3 +354,5 @@ v3_ui.render()
 v4_ui.render()
 
 v5_ui.render()
+
+v6_ui.render()
