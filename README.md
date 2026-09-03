@@ -88,3 +88,26 @@ Enter a ticker to open an explainable company-research workspace. It includes a 
 V3 adds nine connected modules: an interactive sector Value Radar, comparison for up to 30 stocks, a configurable fundamental screener, ten transparent strategy presets, an evidence-based bull/bear research report, automatic peer ranking, ticker notes and investment checklists, CSV portfolio health analysis, and an optional Financial Modeling Prep enrichment layer. Load a research universe once and the cached snapshot is reused throughout V3 to reduce repeated provider calls.
 
 To activate the optional professional provider, add `FMP_API_KEY` to Streamlit Secrets. Yahoo Finance remains the fallback. V3 outputs are research classifications and estimates, not personalized investment recommendations.
+
+
+## V4 Automation & Intelligence
+
+V4 adds nine quick-access modules:
+
+1. AI Stock Copilot with explainable, metric-grounded answers
+2. SEC Filing Analyzer using the official EDGAR submissions API
+3. Smart Alerts evaluated whenever the module is refreshed
+4. Paper-Trading Portfolio with a simulated order ledger and live mark-to-market
+5. Inverse-volatility Portfolio Optimizer with concentration controls
+6. Monte Carlo Portfolio Simulator with percentile outcomes and loss probability
+7. Earnings and Economic Calendar with official macro-calendar links
+8. Options Analytics with calls, puts, volume/open-interest ranking, implied volatility, and a covered-call payoff chart
+9. Account & Cloud Sync Vault with portable JSON backup and restore
+
+Operational notes:
+
+- Smart Alerts do not run in the background while the Streamlit app is closed. Push delivery requires a separate scheduled notification service.
+- Paper trading is simulation only and never sends broker orders.
+- SEC requests use the official keyless EDGAR data API. Enter a real contact email in the module so the User-Agent follows SEC automated-access guidance.
+- Account backup is portable across devices. Automatic hosted sync and authentication remain unconnected until a database/auth provider is configured.
+- Optimization and Monte Carlo results are historical estimates, not forecasts or investment advice.
