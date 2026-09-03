@@ -20,9 +20,23 @@ def _append(path: Path, row: dict, columns: list[str]) -> None:
     df = _read(path, columns); pd.concat([df, pd.DataFrame([row])], ignore_index=True).to_csv(path, index=False)
 
 def watchlist() -> pd.DataFrame: return _read(WATCHLIST, ["Symbol", "Signal", "Entry", "Stop", "Target 1", "Target 2", "Alert"])
+def save_watchlist(frame: pd.DataFrame) -> None:
+    """Validate and replace the complete watchlist after an editor save."""
+    columns = ["Symbol", "Signal", "Entry", "Stop", "Target 1", "Target 2", "Alert"]
+    cleaned = frame.copy()
+    for column in columns:
+        if column not in cleaned: cleaned[column] = "" if column in ["Symbol", "Signal", "Alert"] else 0.0
+    cleaned["Symbol"] = cleaned["Symbol"].fillna("").astype(str).str.strip().str.upper()
+    cleaned["Signal"] = cleaned["Signal"].fillna("").astype(str).str.strip().str.upper()
+    cleaned["Alert"] = cleaned["Alert"].fillna("").astype(str).str.strip()
+    for column in ["Entry", "Stop", "Target 1", "Target 2"]:
+        cleaned[column] = pd.to_numeric(cleaned[column], errors="coerce").fillna(0.0)
+    cleaned = cleaned[cleaned["Symbol"] != ""].drop_duplicates("Symbol", keep="last")
+    DATA_DIR.mkdir(exist_ok=True); cleaned[columns].to_csv(WATCHLIST, index=False)
+
 def add_watch(row: dict) -> None:
     current = watchlist(); current = current[current.Symbol != row["Symbol"]] if not current.empty else current
-    pd.concat([current, pd.DataFrame([row])], ignore_index=True).to_csv(WATCHLIST, index=False)
+    save_watchlist(pd.concat([current, pd.DataFrame([row])], ignore_index=True))
 def journal() -> pd.DataFrame: return _read(JOURNAL, ["Date", "Symbol", "Side", "Entry", "Exit", "Shares", "Notes"])
 def add_journal(row: dict) -> None: _append(JOURNAL, row, ["Date", "Symbol", "Side", "Entry", "Exit", "Shares", "Notes"])
 
