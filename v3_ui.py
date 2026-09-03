@@ -60,12 +60,24 @@ def render() -> None:
     if universe.empty:
         st.info("Load the research universe once, then use all nine modules without downloading the same data again.")
 
-    st.markdown("**Quick access**")
-    with st.container(horizontal=True):
-        if st.button("8 · Portfolio health", icon=":material/monitoring:", width="stretch"):
-            st.session_state.v3_section = "8 · Portfolio health"
-        if st.button("9 · Professional data", icon=":material/database:", width="stretch"):
-            st.session_state.v3_section = "9 · Professional data"
+    st.markdown("**Quick access — all nine modules**")
+    quick_modules = [
+        ("1 · Value Radar", ":material/radar:"),
+        ("2 · Stock comparison", ":material/compare_arrows:"),
+        ("3 · Advanced screener", ":material/filter_alt:"),
+        ("4 · Screening strategies", ":material/strategy:"),
+        ("5 · AI research report", ":material/description:"),
+        ("6 · Industry peers", ":material/groups:"),
+        ("7 · Notes and checklist", ":material/checklist:"),
+        ("8 · Portfolio health", ":material/monitoring:"),
+        ("9 · Professional data", ":material/database:"),
+    ]
+    for row_start in range(0, len(quick_modules), 3):
+        columns = st.columns(3)
+        for column, (label, icon) in zip(columns, quick_modules[row_start:row_start + 3]):
+            with column:
+                if st.button(label, icon=icon, width="stretch", key=f"quick_{label[0]}"):
+                    st.session_state.v3_section = label
 
     section = st.selectbox("V3 module", [
         "1 · Value Radar", "2 · Stock comparison", "3 · Advanced screener", "4 · Screening strategies",
