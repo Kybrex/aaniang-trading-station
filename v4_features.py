@@ -34,6 +34,31 @@ def copilot_answer(question: str, row: dict) -> str:
     margin = _number(row.get("Operating margin"))
     debt = _number(row.get("Debt/Equity"))
     momentum = _number(row.get("6M return"))
+    beta = _number(row.get("Beta"), 1.0)
+    sector = str(row.get("Sector") or "Unknown")
+    if any(word in q for word in ("recession", "downturn", "recession proof", "defensive")):
+        defensive_sectors = {"Consumer Defensive", "Healthcare", "Utilities"}
+        resilience_points = sum([
+            quality >= 70,
+            margin >= 15,
+            debt <= 100,
+            growth >= 0,
+            beta <= 1,
+            sector in defensive_sectors,
+        ])
+        resilience = "relatively resilient" if resilience_points >= 4 else "moderately resilient" if resilience_points >= 2 else "economically sensitive"
+        sector_note = (
+            f"{sector} is generally considered defensive"
+            if sector in defensive_sectors
+            else f"{sector} is not normally classified as a defensive sector"
+        )
+        return (
+            f"No company is truly recession-proof. Based on the loaded metrics, {symbol} appears {resilience}: "
+            f"quality is {quality:.0f}/100, operating margin is {margin:.1f}%, revenue growth is {growth:.1f}%, "
+            f"debt/equity is {debt:.0f}%, and beta is {beta:.2f}. {sector_note}. "
+            "Strong profitability and customer loyalty can provide a cushion, but weaker consumer and business spending can still reduce product demand. "
+            "Review performance during earlier recessions, services revenue stability, cash generation, and valuation before drawing a conclusion."
+        )
     if any(word in q for word in ("risk", "bear", "danger", "weak")):
         risks = []
         if debt > 150: risks.append(f"debt/equity is elevated at {debt:.0f}%")
