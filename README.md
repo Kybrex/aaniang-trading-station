@@ -81,3 +81,10 @@ Yahoo Finance is an unofficial data source and can throttle or occasionally omit
 ## AANIANG company intelligence V2
 
 Enter a ticker to open an explainable company-research workspace. It includes a 0–100 quality score with category-level evidence, annual revenue/earnings/cash-flow history, five-year price history, company and valuation metrics, and an adjustable intrinsic-value laboratory. Bear, base, and bull presets combine available DCF/free-cash-flow, earnings-multiple, book-value, and analyst-consensus estimates. Missing Yahoo fields receive no quality points and unavailable valuation methods are omitted rather than invented.
+
+
+## AANIANG V3 Discovery Center
+
+V3 adds nine connected modules: an interactive sector Value Radar, comparison for up to 30 stocks, a configurable fundamental screener, ten transparent strategy presets, an evidence-based bull/bear research report, automatic peer ranking, ticker notes and investment checklists, CSV portfolio health analysis, and an optional Financial Modeling Prep enrichment layer. Load a research universe once and the cached snapshot is reused throughout V3 to reduce repeated provider calls.
+
+To activate the optional professional provider, add `FMP_API_KEY` to Streamlit Secrets. Yahoo Finance remains the fallback. V3 outputs are research classifications and estimates, not personalized investment recommendations.
