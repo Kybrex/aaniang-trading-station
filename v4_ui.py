@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from v3_features import load_notes
+from v3_features import load_notes, load_snapshot
 from v4_features import (
     copilot_answer, earnings_calendar, evaluate_alert, export_vault, load_trades,
     monte_carlo, optimize_portfolio, options_snapshot, paper_positions, save_trade,
@@ -58,13 +58,27 @@ def render() -> None:
     if section.startswith("1"):
         st.subheader("AI Stock Copilot")
         st.caption("Explainable answers grounded in the metrics already loaded by the app. It does not invent live facts or issue buy/sell instructions.")
-        if not symbols: return
-        symbol = st.selectbox("Company", symbols, key="v4_copilot_symbol")
+        if symbols:
+            symbol = st.selectbox("Company", symbols, key="v4_copilot_symbol")
+        else:
+            symbol = st.text_input("Company symbol", "AAPL", key="v4_copilot_ticker").strip().upper()
+            st.caption("V3 is not loaded, so Copilot will retrieve this company when you ask a question.")
         prompts = ["Give me an overview", "What are the principal risks?", "Is the valuation attractive?", "How is momentum?"]
         question = st.text_input("Ask about this company", prompts[0], key="v4_question")
         if st.button("Ask Copilot", type="primary", key="v4_ask"):
-            row = universe.loc[universe.Symbol == symbol].iloc[0].to_dict()
-            st.session_state.v4_answer = copilot_answer(question, row)
+            if symbols and symbol in symbols:
+                row = universe.loc[universe.Symbol == symbol].iloc[0].to_dict()
+            else:
+                try:
+                    fmp_key = str(st.secrets.get("FMP_API_KEY", ""))
+                except Exception:
+                    fmp_key = ""
+                with st.spinner(f"Loading {symbol} research metrics..."):
+                    row = load_snapshot(symbol, fmp_key)
+            if row:
+                st.session_state.v4_answer = copilot_answer(question, row)
+            else:
+                st.session_state.v4_answer = "No usable company data was returned. Check the ticker or try again after a temporary data-provider delay."
         if st.session_state.get("v4_answer"):
             with st.chat_message("assistant"): st.write(st.session_state.v4_answer)
         st.caption("Try: " + " · ".join(prompts[1:]))
