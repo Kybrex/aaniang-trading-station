@@ -55,8 +55,8 @@ def render() -> None:
     if load_universe:
         symbols = tuple(_symbols(universe_text))
         with st.spinner(f"Loading comparable data for {len(symbols)} companies..."):
-            st.session_state.v3_universe = _scan(symbols, fmp_key)
-    universe = st.session_state.get("v3_universe", pd.DataFrame())
+            st.session_state.v3_universe_data = _scan(symbols, fmp_key)
+    universe = st.session_state.get("v3_universe_data", pd.DataFrame())
     if universe.empty:
         st.info("Load the research universe once, then use all nine modules without downloading the same data again.")
 
