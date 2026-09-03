@@ -115,6 +115,8 @@ watch_tab, journal_tab = st.tabs(["Watchlist and alerts", "Trade journal"])
 with watch_tab:
     st.caption("Local alerts are reference markers. The app cannot send background notifications while closed.")
     saved_watchlist = watchlist()
+    watchlist_notice = st.session_state.pop("watchlist_notice", "")
+    if watchlist_notice: st.success(watchlist_notice)
     action_col, edit_col = st.columns([1, 1])
     with action_col:
         if st.button("Refresh watchlist prices and alerts", disabled=saved_watchlist.empty):
@@ -122,7 +124,7 @@ with watch_tab:
     with edit_col:
         edit_watchlist = st.toggle("Edit watchlist", value=False, key="edit_watchlist_toggle")
     if edit_watchlist:
-        st.caption("Edit cells directly. Use the + control to add rows or the row menu to delete them, then save.")
+        st.caption("Edit cells directly, add rows, or use the mobile-friendly delete control below.")
         edited_watchlist = st.data_editor(
             saved_watchlist,
             width="stretch",
@@ -148,6 +150,34 @@ with watch_tab:
                 st.rerun()
         with count_col:
             st.caption(f"{len(edited_watchlist)} rows in the editor")
+        delete_options = sorted(
+            symbol for symbol in edited_watchlist.get("Symbol", pd.Series(dtype=str)).fillna("").astype(str).str.strip().str.upper().unique()
+            if symbol
+        )
+        with st.container(border=True):
+            st.markdown("**Delete a watchlist row**")
+            delete_symbol = st.selectbox(
+                "Select symbol to delete",
+                delete_options,
+                index=None,
+                placeholder="Choose a symbol",
+                disabled=not delete_options,
+                key="watchlist_delete_symbol",
+            )
+            st.caption("The selected row is removed immediately from the saved watchlist.")
+            if st.button(
+                "Delete selected row",
+                icon=":material/delete:",
+                disabled=not delete_symbol,
+                key="watchlist_delete_button",
+            ):
+                remaining = edited_watchlist[
+                    edited_watchlist["Symbol"].fillna("").astype(str).str.strip().str.upper() != delete_symbol
+                ]
+                save_watchlist(remaining)
+                st.session_state.pop("evaluated_watchlist", None)
+                st.session_state.watchlist_notice = f"{delete_symbol} was deleted from the watchlist."
+                st.rerun()
     else:
         st.dataframe(st.session_state.get("evaluated_watchlist", saved_watchlist), width="stretch", hide_index=True)
 with journal_tab:
