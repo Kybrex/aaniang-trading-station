@@ -5,6 +5,7 @@ import io
 import pandas as pd
 import streamlit as st
 
+from v3_features import load_snapshot
 from v5_features import (
     catalysts, dividend_intelligence, fifo_tax_lots, insider_activity,
     management_score, ownership, scenario_table, sector_rotation,
@@ -174,11 +175,20 @@ def render() -> None:
     else:
         st.subheader("Management Quality Score")
         st.caption("Transparent proxy based on profitability, growth, leverage, and the app’s quality model. It does not measure character or private board information.")
+        symbol = _symbol_input("Company", universe, "v5_management_symbol")
         if universe.empty:
-            st.info("Load the V3 research universe to score management quality from comparable company metrics."); return
-        symbol = st.selectbox("Company", universe.Symbol.tolist(), key="v5_management_symbol")
-        row = universe.loc[universe.Symbol == symbol].iloc[0].to_dict(); score, reasons = management_score(row)
-        st.metric("Management quality proxy", f"{score}/100", border=True)
-        st.progress(score)
-        for reason in reasons: st.write(f"• {reason}")
+            st.caption("V3 is not loaded. The module will retrieve public metrics for this ticker.")
+        if st.button("Analyze management quality", type="primary", key="v5_management_run"):
+            if not universe.empty and symbol in universe.Symbol.values:
+                row = universe.loc[universe.Symbol == symbol].iloc[0].to_dict()
+            else:
+                with st.spinner(f"Loading {symbol} company metrics..."):
+                    row = load_snapshot(symbol)
+            st.session_state.v5_management_row = row
+        row = st.session_state.get("v5_management_row")
+        if row:
+            score, reasons = management_score(row)
+            st.metric("Management quality proxy", f"{score}/100", border=True)
+            st.progress(score)
+            for reason in reasons: st.write(f"• {reason}")
 
