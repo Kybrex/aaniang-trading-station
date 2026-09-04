@@ -24,12 +24,13 @@ def _table(frame: pd.DataFrame, styles, limit: int = 15):
     if frame is None or frame.empty: return Paragraph("No data returned.", styles["BodyText"])
     view = frame.head(limit).copy()
     if len(view.columns) > 6: view = view.iloc[:, :6]
-    rows = [[Paragraph(f"<b>{escape(str(c))}</b>", styles["Tiny"]) for c in view.columns]]
+    header_style = styles["TableHeader"] if "TableHeader" in styles else styles["Tiny"]
+    rows = [[Paragraph(f"<b>{escape(str(c))}</b>", header_style) for c in view.columns]]
     for values in view.itertuples(index=False, name=None):
         rows.append([Paragraph(escape(_value(v)), styles["Tiny"]) for v in values])
     table = Table(rows, repeatRows=1, hAlign="LEFT")
     table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#123B5D")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#245A8D")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("GRID", (0, 0), (-1, -1), .25, colors.HexColor("#CBD5E1")),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F2F6F8")]),
@@ -112,6 +113,7 @@ def complete_research_pdf(report: dict) -> bytes:
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name="Section", parent=styles["Heading2"], textColor=colors.HexColor("#0B6E75"), spaceBefore=12, spaceAfter=6, keepWithNext=True))
     styles.add(ParagraphStyle(name="Tiny", parent=styles["BodyText"], fontSize=7, leading=8.5))
+    styles.add(ParagraphStyle(name="TableHeader", parent=styles["Tiny"], textColor=colors.white, fontName="Helvetica-Bold"))
     styles.add(ParagraphStyle(name="Meta", parent=styles["BodyText"], fontSize=9, textColor=colors.HexColor("#5B6573"), leading=12))
     story = [Paragraph("AANIANG Complete Stock Research", styles["Title"]),
         Paragraph(f"{escape(str(snapshot.get('Company', symbol)))} ({escape(symbol)})", styles["Heading1"]),
