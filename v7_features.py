@@ -27,12 +27,16 @@ def ai_research_summary(snapshot: dict, technical_score_value: int, patterns: li
     risk = copilot_answer("What are the principal risks?", snapshot)
     valuation = copilot_answer("Is the valuation attractive?", snapshot)
     momentum = copilot_answer("How is momentum?", snapshot)
-    quality = float(snapshot.get("Quality") or 0)
+    quality_raw = snapshot.get("Quality"); quality = float(quality_raw) if quality_raw is not None else None
     gap = snapshot.get("Value gap")
     gap_text = f"{float(gap):.1f}%" if gap is not None else "unavailable"
     pattern_text = ", ".join(str(item.get("Pattern")) for item in patterns[:3]) or "No high-confidence chart pattern was detected"
     alert_text = "; ".join(alerts[:4]) or "No configured technical alert is active"
-    if quality >= 70 and technical_score_value >= 70:
+    if quality is None:
+        stance = "Fundamental quality data was unavailable in this run, so the conclusion relies more heavily on price history and must be regenerated before fundamental decisions."
+        valuation = "Valuation could not be assessed because current fundamental and analyst fields were not returned."
+        risk = "Fundamental risk could not be assessed in this run; technical risk data remains available elsewhere in the report."
+    elif quality >= 70 and technical_score_value >= 70:
         stance = "The measured quality and technical trend are both constructive, but entry price and downside risk still require review."
     elif quality >= 70:
         stance = "Business quality appears stronger than the current technical setup; patience and confirmation may be appropriate."
@@ -41,7 +45,7 @@ def ai_research_summary(snapshot: dict, technical_score_value: int, patterns: li
     else:
         stance = "Neither the quality nor technical score currently provides a strong quantitative confirmation."
     return {
-        "Executive view": f"{symbol} has a quality score of {quality:.0f}/100, technical score of {technical_score_value}/100, management score of {management_value}/100, and analyst value gap of {gap_text}. {stance}",
+        "Executive view": f"{symbol} has a quality score of {f'{quality:.0f}/100' if quality is not None else 'unavailable'}, technical score of {technical_score_value}/100, management score of {f'{management_value}/100' if management_value is not None else 'unavailable'}, and analyst value gap of {gap_text}. {stance}",
         "Valuation view": valuation,
         "Risk view": risk,
         "Technical view": f"{momentum} Pattern scan: {pattern_text}. Active signals: {alert_text}.",
@@ -50,7 +54,7 @@ def ai_research_summary(snapshot: dict, technical_score_value: int, patterns: li
 
 
 def _professional_sections(snapshot: dict, technical: pd.DataFrame, levels: pd.DataFrame, technical_value: int, management_value: int, peers: pd.DataFrame) -> dict:
-    price = float(snapshot.get("Price") or 0); quality = float(snapshot.get("Quality") or 0)
+    price = float(snapshot.get("Price") or 0); quality = float(snapshot["Quality"]) if snapshot.get("Quality") is not None else None
     growth = float(snapshot.get("Revenue growth") or 0); debt = float(snapshot.get("Debt/Equity") or 0)
     beta = float(snapshot.get("Beta") or 1); value_gap = float(snapshot.get("Value gap") or 0)
     valuation_score = float(np.clip(50 + value_gap * 2, 0, 100))
@@ -63,7 +67,8 @@ def _professional_sections(snapshot: dict, technical: pd.DataFrame, levels: pd.D
         {"Component":"Growth","Score":growth_score,"Weight %":10}, {"Component":"Financial health","Score":financial_score,"Weight %":10},
         {"Component":"Risk profile","Score":risk_score,"Weight %":5},
     ])
-    overall = int(round((components.Score * components["Weight %"] / 100).sum()))
+    valid = components.dropna(subset=["Score"])
+    overall = int(round((valid.Score * valid["Weight %"]).sum() / valid["Weight %"].sum())) if not valid.empty else 0
     classification = "Investigate" if overall >= 75 else "Watch" if overall >= 60 else "Wait" if overall >= 45 else "Avoid"
     base_growth = float(np.clip(growth, -10, 25)); base_pe = float(snapshot.get("Forward P/E") or snapshot.get("Trailing P/E") or 20)
     scenario_rows = []
@@ -80,8 +85,8 @@ def _professional_sections(snapshot: dict, technical: pd.DataFrame, levels: pd.D
     plan_frame = pd.DataFrame([{"Entry":price,"Stop":stop,"Target":target,**plan}])
     analyst = pd.DataFrame([{"Current price":price,"Mean target":snapshot.get("Analyst target"),"Implied upside %":value_gap,"Trailing P/E":snapshot.get("Trailing P/E"),"Forward P/E":snapshot.get("Forward P/E"),"Estimate signal":"Positive" if value_gap>=10 else "Neutral" if value_gap>=0 else "Cautious"}])
     checks = [
-        ("Business quality",quality>=70,f"Quality {quality:.0f}/100"), ("Positive growth",growth>0,f"Revenue growth {growth:.1f}%"),
-        ("Financial health",financial_score>=60,f"Financial score {financial_score:.0f}/100"), ("Management",management_value>=70,f"Management {management_value}/100"),
+        ("Business quality",quality is not None and quality>=70,f"Quality {quality:.0f}/100" if quality is not None else "Quality unavailable"), ("Positive growth",growth>0,f"Revenue growth {growth:.1f}%"),
+        ("Financial health",financial_score>=60,f"Financial score {financial_score:.0f}/100"), ("Management",management_value is not None and management_value>=70,f"Management {management_value}/100" if management_value is not None else "Management unavailable"),
         ("Valuation",value_gap>=10,f"Analyst value gap {value_gap:.1f}%"), ("Technical trend",technical_value>=70,f"Technical {technical_value}/100"),
         ("Controlled risk",risk_score>=60,f"Risk score {risk_score:.0f}/100"), ("Reward/risk",float(plan.get("Reward/risk",0))>=2,f"Reward/risk {float(plan.get('Reward/risk',0)):.2f}R"),
     ]
@@ -105,6 +110,8 @@ def complete_stock_research(symbol: str, fmp_key: str = "", universe: pd.DataFra
     patterns, patterns_error = _safe(lambda: detect_patterns(technical), [])
     alerts, alerts_error = _safe(lambda: technical_alerts(technical), [])
     management, management_error = _safe(lambda: management_score(snapshot), (0, []))
+    if not snapshot.get("Fundamentals available", True):
+        management = (None, ["Management score unavailable because fundamental fields were not returned."])
     dividend, dividend_error = _safe(lambda: dividend_intelligence(symbol), (pd.DataFrame(), {}))
     insiders, insider_error = _safe(lambda: insider_activity(symbol), pd.DataFrame())
     holder_data, ownership_error = _safe(lambda: ownership(symbol), (pd.DataFrame(), pd.DataFrame(), pd.DataFrame()))
