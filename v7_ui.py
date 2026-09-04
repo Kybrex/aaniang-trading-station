@@ -45,6 +45,12 @@ def render() -> None:
         with st.expander("Professional report additions"):
             st.write("Overall score · Bull/Base/Bear valuation · Financial trends · Risk dashboard · Peer comparison · Catalyst timeline · Analyst estimates · Trade plan · Investment checklist")
             st.dataframe(report["checklist"], hide_index=True, width="stretch")
+        with st.expander("Due-Diligence Pack — 12 additional sections"):
+            dd_cols=st.columns(3)
+            dd_cols[0].metric("Moat score",f"{report['moat_score']}/100",border=True)
+            dd_cols[1].metric("Recession resilience",f"{report['recession_score']}/100",border=True)
+            dd_cols[2].metric("Red flags",len(report["red_flags"]),border=True)
+            st.caption("SEC filings · estimate revisions · moat · recession resilience · cash-flow quality · dilution/buybacks · valuation range · earnings surprises · red flags · competitors · probability outlook · sources")
         st.download_button("Download complete stock research (PDF)", st.session_state.v7_pdf,
             f"{report['symbol']}-complete-research.pdf", "application/pdf", icon=":material/picture_as_pdf:", type="primary")
 
