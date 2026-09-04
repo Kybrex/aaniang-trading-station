@@ -9,6 +9,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
+from reportlab.graphics.shapes import Drawing, Line, PolyLine, Rect, String
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
@@ -35,6 +36,52 @@ def _table(frame: pd.DataFrame, styles, limit: int = 15):
         ("LEFTPADDING", (0, 0), (-1, -1), 3), ("RIGHTPADDING", (0, 0), (-1, -1), 3),
     ]))
     return table
+
+
+def _technical_chart(history: pd.DataFrame, levels: pd.DataFrame) -> Drawing:
+    """Build a sharp vector price chart with MVA and support/resistance."""
+    width, height = 500, 245
+    drawing = Drawing(width, height)
+    drawing.add(Rect(0, 0, width, height, fillColor=colors.HexColor("#F8FAFC"), strokeColor=colors.HexColor("#CBD5E1")))
+    left, right, bottom, top = 48, 12, 30, 28
+    plot_width, plot_height = width-left-right, height-bottom-top
+    if history is None or history.empty or "Close" not in history:
+        drawing.add(String(width/2-55, height/2, "Price history unavailable", fontSize=10, fillColor=colors.HexColor("#64748B")))
+        return drawing
+    frame = history.tail(252).copy()
+    series = {"Price": frame["Close"]}
+    for column in ("SMA 20", "SMA 50", "SMA 200"):
+        if column in frame: series[column] = frame[column]
+    values = pd.concat([value for value in series.values()]).dropna()
+    level_values = pd.to_numeric(levels.get("Level", pd.Series(dtype=float)), errors="coerce").dropna() if levels is not None else pd.Series(dtype=float)
+    if not level_values.empty: values = pd.concat([values, level_values])
+    minimum, maximum = float(values.min()), float(values.max())
+    padding = max((maximum-minimum)*.08, maximum*.01); minimum -= padding; maximum += padding
+    scale_y = lambda value: bottom + (float(value)-minimum) / max(maximum-minimum, .01) * plot_height
+    scale_x = lambda index: left + index / max(len(frame)-1, 1) * plot_width
+    for step in range(5):
+        value = minimum + (maximum-minimum)*step/4; y = scale_y(value)
+        drawing.add(Line(left, y, width-right, y, strokeColor=colors.HexColor("#E2E8F0"), strokeWidth=.5))
+        drawing.add(String(3, y-3, f"{value:,.0f}", fontSize=7, fillColor=colors.HexColor("#64748B")))
+    palette = {"Price":"#111827", "SMA 20":"#2563EB", "SMA 50":"#F59E0B", "SMA 200":"#7C3AED"}
+    for name, data in series.items():
+        points = [(scale_x(i), scale_y(value)) for i, value in enumerate(data.tolist()) if pd.notna(value)]
+        if len(points) > 1: drawing.add(PolyLine(points, strokeColor=colors.HexColor(palette[name]), strokeWidth=1.5 if name=="Price" else 1.15))
+    if levels is not None and not levels.empty:
+        for row in levels.head(8).itertuples(index=False):
+            y = scale_y(row.Level); support = str(row.Type).lower().startswith("support")
+            color = colors.HexColor("#059669" if support else "#DC2626")
+            drawing.add(Line(left, y, width-right, y, strokeColor=color, strokeWidth=.8, strokeDashArray=[4, 3]))
+            drawing.add(String(width-right-82, y+2, f"{row.Type} {row.Level:.2f}", fontSize=6.5, fillColor=color))
+    legend_x = left
+    for name in series:
+        drawing.add(Line(legend_x, height-12, legend_x+16, height-12, strokeColor=colors.HexColor(palette[name]), strokeWidth=2))
+        drawing.add(String(legend_x+20, height-15, name, fontSize=7, fillColor=colors.HexColor("#334155")))
+        legend_x += 82
+    first_date, last_date = frame.index[0], frame.index[-1]
+    drawing.add(String(left, 10, str(getattr(first_date, "date", lambda: first_date)()), fontSize=7, fillColor=colors.HexColor("#64748B")))
+    drawing.add(String(width-right-58, 10, str(getattr(last_date, "date", lambda: last_date)()), fontSize=7, fillColor=colors.HexColor("#64748B")))
+    return drawing
 
 
 def complete_research_pdf(report: dict) -> bytes:
@@ -64,7 +111,11 @@ def complete_research_pdf(report: dict) -> bytes:
         story.append(Paragraph(f"<b>{escape(heading)}</b>", styles["BodyText"]))
         for point in points: story.append(Paragraph(f"- {escape(str(point))}", styles["BodyText"]))
 
-    story.extend([PageBreak(), Paragraph("Technical Analysis", styles["Section"]), Paragraph(f"Composite technical score: <b>{report['technical_score']}/100</b>", styles["BodyText"]), _table(pd.DataFrame(report["technical_checks"]), styles), Paragraph("Support and Resistance", styles["Section"]), _table(report["levels"], styles)])
+    story.extend([PageBreak(), Paragraph("Technical Analysis", styles["Section"]),
+        Paragraph("One-year price chart with 20-, 50-, and 200-session moving averages plus detected support and resistance.", styles["Meta"]),
+        _technical_chart(report.get("technical_history", pd.DataFrame()), report["levels"]), Spacer(1, 8),
+        Paragraph(f"Composite technical score: <b>{report['technical_score']}/100</b>", styles["BodyText"]),
+        _table(pd.DataFrame(report["technical_checks"]), styles), Paragraph("Support and Resistance", styles["Section"]), _table(report["levels"], styles)])
     pattern_frame = pd.DataFrame(report["patterns"])
     story.extend([Paragraph("Pattern Detection", styles["Section"]), _table(pattern_frame, styles), Paragraph("Active Technical Alerts", styles["Section"]), Paragraph(escape("; ".join(report["alerts"]) if report["alerts"] else "No configured technical alert is active."), styles["BodyText"])])
     story.extend([Paragraph("Management Quality", styles["Section"]), Paragraph(f"Score: <b>{report['management_score']}/100</b>", styles["BodyText"])])
