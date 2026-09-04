@@ -4,6 +4,7 @@ from __future__ import annotations
 import io
 from xml.sax.saxutils import escape
 
+import numpy as np
 import pandas as pd
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -84,6 +85,26 @@ def _technical_chart(history: pd.DataFrame, levels: pd.DataFrame) -> Drawing:
     return drawing
 
 
+def _financial_trend_chart(frame: pd.DataFrame) -> Drawing:
+    width, height = 500, 210; drawing = Drawing(width, height)
+    drawing.add(Rect(0, 0, width, height, fillColor=colors.HexColor("#F8FAFC"), strokeColor=colors.HexColor("#CBD5E1")))
+    if frame is None or frame.empty or len(frame) < 2:
+        drawing.add(String(190, 100, "Financial trend data unavailable", fontSize=9)); return drawing
+    columns=[c for c in ["Revenue","Net income","Operating cash flow","Free cash flow"] if c in frame and pd.to_numeric(frame[c],errors="coerce").notna().sum()>=2]
+    palette=["#2563EB","#059669","#F59E0B","#7C3AED"]; left,bottom,pw,ph=48,28,438,145
+    for step in range(5):
+        y=bottom+ph*step/4; drawing.add(Line(left,y,left+pw,y,strokeColor=colors.HexColor("#E2E8F0"),strokeWidth=.5)); drawing.add(String(6,y-3,f"{step*50}%",fontSize=7,fillColor=colors.HexColor("#64748B")))
+    for color,column in zip(palette,columns):
+        values=pd.to_numeric(frame[column],errors="coerce"); first=values.dropna().iloc[0]
+        indexed=values/first*100 if first else values*0
+        points=[(left+i/max(len(frame)-1,1)*pw,bottom+float(np.clip(v,0,200))/200*ph) for i,v in enumerate(indexed) if pd.notna(v)]
+        if len(points)>1: drawing.add(PolyLine(points,strokeColor=colors.HexColor(color),strokeWidth=1.6))
+    lx=left
+    for color,column in zip(palette,columns): drawing.add(Line(lx,height-17,lx+15,height-17,strokeColor=colors.HexColor(color),strokeWidth=2)); drawing.add(String(lx+18,height-20,column,fontSize=7)); lx+=112
+    years=frame["Year"].astype(str).tolist(); drawing.add(String(left,8,years[0],fontSize=7)); drawing.add(String(left+pw-25,8,years[-1],fontSize=7))
+    return drawing
+
+
 def complete_research_pdf(report: dict) -> bytes:
     output = io.BytesIO(); snapshot = report["snapshot"]; symbol = report["symbol"]
     doc = SimpleDocTemplate(output, pagesize=letter, rightMargin=.55*inch, leftMargin=.55*inch,
@@ -114,6 +135,20 @@ def complete_research_pdf(report: dict) -> bytes:
     for heading, points in report["brief"].items():
         story.append(Paragraph(f"<b>{escape(heading)}</b>", styles["BodyText"]))
         for point in points: story.append(Paragraph(f"- {escape(str(point))}", styles["BodyText"]))
+
+    story.extend([Paragraph("V7 Professional Decision Center", styles["Section"]),
+        Paragraph(f"Overall investment score: <b>{report.get('overall_score',0)}/100</b> | Research classification: <b>{escape(str(report.get('classification','Review')))}</b>", styles["BodyText"]),
+        Paragraph("Transparent Score Components", styles["Section"]), _table(report.get("score_components", pd.DataFrame()), styles),
+        Paragraph("Bull, Base and Bear Valuation", styles["Section"]), _table(report.get("valuation_scenarios", pd.DataFrame()), styles),
+        Paragraph("Financial Trend Chart (first reported year = 100)", styles["Section"]), _financial_trend_chart(report.get("financial_trends", pd.DataFrame())),
+        Paragraph("Financial Trend Data", styles["Section"]), _table(report.get("financial_trends", pd.DataFrame()), styles)])
+
+    story.extend([PageBreak(), Paragraph("Risk Dashboard", styles["Section"]), _table(report.get("risk_dashboard", pd.DataFrame()), styles),
+        Paragraph("Peer Comparison", styles["Section"]), _table(report.get("peer_comparison", pd.DataFrame()), styles),
+        Paragraph("Analyst Estimate Snapshot", styles["Section"]), _table(report.get("analyst_estimates", pd.DataFrame()), styles),
+        Paragraph("Automatic Trade Plan", styles["Section"]), _table(report.get("trade_plan", pd.DataFrame()), styles),
+        Paragraph("Investment Checklist", styles["Section"]), _table(report.get("checklist", pd.DataFrame()), styles),
+        Paragraph("Catalyst Timeline", styles["Section"]), _table(report.get("calendar", pd.DataFrame()), styles)])
 
     story.extend([PageBreak(), Paragraph("Technical Analysis", styles["Section"]),
         Paragraph("One-year price chart with 20-, 50-, and 200-session moving averages plus detected support and resistance.", styles["Meta"]),
