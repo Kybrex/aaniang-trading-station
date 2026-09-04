@@ -9,7 +9,7 @@ import pandas as pd
 import yfinance as yf
 
 from v3_features import load_snapshot, research_brief
-from v4_features import copilot_answer
+from v4_features import copilot_answer, sec_filings
 from v5_features import catalysts, dividend_intelligence, insider_activity, management_score, ownership
 from v6_features import advanced_indicators, detect_patterns, load_history, support_resistance, technical_alerts, technical_score, trade_plan
 
@@ -96,6 +96,35 @@ def _professional_sections(snapshot: dict, technical: pd.DataFrame, levels: pd.D
     return {"overall_score":overall,"classification":classification,"score_components":components,"valuation_scenarios":pd.DataFrame(scenario_rows),"risk_dashboard":risk,"peer_comparison":peer_view,"analyst_estimates":analyst,"trade_plan":plan_frame,"checklist":checklist}
 
 
+def _due_diligence_pack(snapshot: dict, technical: pd.DataFrame, trends: pd.DataFrame, peers: pd.DataFrame, dividend_metrics: dict, insiders: pd.DataFrame) -> dict:
+    def number(key, default=0.0):
+        try: return float(snapshot.get(key)) if snapshot.get(key) is not None else default
+        except (TypeError, ValueError): return default
+    quality=number("Quality",50); margin=number("Operating margin"); growth=number("Revenue growth"); debt=number("Debt/Equity",100); beta=number("Beta",1); current=number("Current ratio",1)
+    moat_checks=[("Profitability",margin>=15,20),("ROE",number("ROE")>=15,20),("Growth",growth>5,15),("Balance sheet",debt<100,15),("Quality",quality>=70,20),("Dividend durability",float(dividend_metrics.get("Safety score",0) or 0)>=70,10)]
+    moat_score=sum(points for _,passed,points in moat_checks if passed)
+    recession_checks=[("Low beta",beta<=1,20),("Positive margin",margin>=10,20),("Controlled debt",debt<100,20),("Positive growth",growth>=0,15),("Liquidity",current>=1,10),("Dividend safety",float(dividend_metrics.get("Safety score",0) or 0)>=60,15)]
+    recession_score=sum(points for _,passed,points in recession_checks if passed)
+    cash_quality=pd.DataFrame()
+    dilution=pd.DataFrame()
+    if not trends.empty:
+        cash_quality=trends[[c for c in ["Year","Net income","Operating cash flow","Free cash flow"] if c in trends]].copy()
+        if {"Net income","Operating cash flow"}.issubset(cash_quality): cash_quality["Cash conversion %"]=cash_quality["Operating cash flow"]/cash_quality["Net income"].replace(0,np.nan)*100
+        dilution=trends[[c for c in ["Year","Diluted shares","Share repurchases"] if c in trends]].copy()
+    returns=technical.Close.pct_change().dropna() if not technical.empty else pd.Series(dtype=float)
+    price=number("Price"); annual_return=float(returns.mean()*252) if not returns.empty else 0; annual_vol=float(returns.std()*np.sqrt(252)) if not returns.empty else 0
+    outlook=pd.DataFrame([{"Percentile":"Bear (10th)","12M price":price*np.exp(annual_return-1.282*annual_vol)},{"Percentile":"Expected (50th)","12M price":price*np.exp(annual_return)},{"Percentile":"Bull (90th)","12M price":price*np.exp(annual_return+1.282*annual_vol)}])
+    valuation=pd.DataFrame([{"Metric":"Trailing P/E","Current":snapshot.get("Trailing P/E"),"Interpretation":"Current snapshot"},{"Metric":"Forward P/E","Current":snapshot.get("Forward P/E"),"Interpretation":"Current analyst estimate"},{"Metric":"Price/Sales","Current":snapshot.get("Price/Sales"),"Interpretation":"Current snapshot"},{"Metric":"Analyst value gap %","Current":snapshot.get("Value gap"),"Interpretation":"Target-price proxy"}])
+    flags=[]
+    if margin<5: flags.append("Operating margin is below 5% or unavailable.")
+    if growth<0: flags.append("Revenue growth is negative.")
+    if debt>150: flags.append("Debt/equity is above 150%.")
+    if beta>1.5: flags.append("Beta indicates high market sensitivity.")
+    if number("Value gap")<0: flags.append("Price is above the analyst mean target.")
+    if not insiders.empty and len(insiders)>10: flags.append("Insider activity is elevated; inspect transaction direction.")
+    return {"moat_score":moat_score,"moat_evidence":pd.DataFrame([{"Factor":n,"Result":"PASS" if p else "REVIEW","Points":pts if p else 0} for n,p,pts in moat_checks]),"recession_score":recession_score,"recession_evidence":pd.DataFrame([{"Factor":n,"Result":"PASS" if p else "REVIEW","Points":pts if p else 0} for n,p,pts in recession_checks]),"cash_flow_quality":cash_quality,"dilution_buybacks":dilution,"historical_valuation":valuation,"probability_outlook":outlook,"red_flags":flags or ["No major rule-based red flag was detected in available fields."],"competitive_comparison":peers.head(10).copy()}
+
+
 def complete_stock_research(symbol: str, fmp_key: str = "", universe: pd.DataFrame | None = None) -> dict:
     """Run all ticker-only research modules and return a report-ready bundle."""
     symbol = symbol.strip().upper()
@@ -123,6 +152,11 @@ def complete_stock_research(symbol: str, fmp_key: str = "", universe: pd.DataFra
     professional = _professional_sections(snapshot, technical, levels, score_result[0], management[0], peers)
     trends, trend_error = _safe(lambda: _financial_trends(symbol), pd.DataFrame())
     if trend_error: errors["Financial trends"] = trend_error
+    sec_data, sec_error = _safe(lambda: sec_filings(symbol, "AANIANG Trading Station research@example.com"), {})
+    if sec_error: errors["SEC filings"] = sec_error
+    estimates, estimates_error = _safe(lambda: _estimate_revisions(symbol), (pd.DataFrame(), pd.DataFrame()))
+    if estimates_error: errors["Estimate revisions"] = estimates_error
+    due_diligence = _due_diligence_pack(snapshot, technical, trends, professional["peer_comparison"], dividend[1], insiders)
 
     errors = {
         "Company snapshot": snapshot_error, "Price history": history_error,
@@ -156,6 +190,10 @@ def complete_stock_research(symbol: str, fmp_key: str = "", universe: pd.DataFra
         "news": catalyst_data[1],
         "errors": {name: error for name, error in errors.items() if error},
         "financial_trends": trends,
+        "sec_filings": sec_data.get("filings", pd.DataFrame()) if sec_data else pd.DataFrame(),
+        "estimate_revisions": estimates[0],
+        "earnings_surprises": estimates[1],
+        **due_diligence,
         **professional,
         "input_required": [
             "Earnings Call Analyzer - transcript required",
@@ -171,10 +209,22 @@ def _financial_trends(symbol: str) -> pd.DataFrame:
     ticker = yf.Ticker(symbol); income = ticker.financials; cash = ticker.cashflow; balance = ticker.balance_sheet
     columns = sorted(set(income.columns).union(cash.columns).union(balance.columns))[-5:]
     rows = []
-    mapping = [("Revenue",income,"Total Revenue"),("Net income",income,"Net Income"),("Operating cash flow",cash,"Operating Cash Flow"),("Free cash flow",cash,"Free Cash Flow"),("Total debt",balance,"Total Debt")]
+    mapping = [("Revenue",income,"Total Revenue"),("Net income",income,"Net Income"),("Operating cash flow",cash,"Operating Cash Flow"),("Free cash flow",cash,"Free Cash Flow"),("Total debt",balance,"Total Debt"),("Diluted shares",income,"Diluted Average Shares"),("Share repurchases",cash,"Repurchase Of Capital Stock")]
     for date in columns:
         row={"Year":getattr(date,"year",str(date))}
         for label,frame,key in mapping: row[label]=frame.at[key,date] if key in frame.index and date in frame else None
         rows.append(row)
     return pd.DataFrame(rows).sort_values("Year")
+
+
+def _estimate_revisions(symbol: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    ticker=yf.Ticker(symbol)
+    frames=[]
+    for label, attribute in (("Earnings", "earnings_estimate"),("Revenue", "revenue_estimate"),("Growth", "growth_estimates")):
+        frame=getattr(ticker, attribute, pd.DataFrame())
+        if isinstance(frame,pd.DataFrame) and not frame.empty:
+            item=frame.reset_index().copy(); item.insert(0,"Estimate type",label); frames.append(item)
+    revisions=pd.concat(frames,ignore_index=True) if frames else pd.DataFrame()
+    history=getattr(ticker,"earnings_history",pd.DataFrame())
+    return revisions, history.reset_index() if isinstance(history,pd.DataFrame) and not history.empty else pd.DataFrame()
 
