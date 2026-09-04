@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from technical_chart import build_company_technical_chart
+from v6_pdf import relative_strength_pdf
 from v6_features import (
     advanced_indicators, detect_patterns, load_history, market_breadth,
     relative_strength, support_resistance, technical_alerts, technical_score,
@@ -112,7 +113,14 @@ def render() -> None:
         else:
             ranked = relative_strength(universe); st.metric("Companies ranked", len(ranked), border=True)
             st.dataframe(ranked, hide_index=True, width="stretch", column_config={"RS score": st.column_config.ProgressColumn(min_value=0, max_value=100)})
-            st.download_button("Download relative-strength ranking", ranked.to_csv(index=False), "relative-strength-ranking.csv", "text/csv")
+            report_pdf = relative_strength_pdf(ranked)
+            st.download_button(
+                "Download relative-strength ranking (PDF)",
+                report_pdf,
+                "relative-strength-ranking.pdf",
+                "application/pdf",
+                icon=":material/picture_as_pdf:",
+            )
 
     elif section.startswith("6"):
         st.subheader("Market Breadth Dashboard")
