@@ -122,13 +122,34 @@ hr { border-color: #c7d0d9 !important; margin: 1.25rem 0 !important; }
   color: #fff !important;
 }
 
-[data-baseweb="input"] > div, [data-baseweb="select"] > div,
-[data-baseweb="textarea"] > div, [data-testid="stNumberInputContainer"] {
+[data-baseweb="input"], [data-baseweb="input"] > div,
+[data-baseweb="select"], [data-baseweb="select"] > div,
+[data-baseweb="textarea"], [data-baseweb="textarea"] > div,
+[data-testid="stNumberInputContainer"], [data-testid="stTextInputRootElement"] {
   background: #fff !important;
   border-color: #aebbc7 !important;
   border-radius: 4px !important;
 }
-input, textarea { color: var(--aa-ink) !important; }
+input, textarea,
+[data-baseweb="input"] input,
+[data-baseweb="textarea"] textarea,
+[data-baseweb="select"] [role="button"],
+[data-baseweb="select"] [data-testid="stMarkdownContainer"],
+[data-baseweb="select"] div {
+  color: #17202a !important;
+  -webkit-text-fill-color: #17202a !important;
+  caret-color: #17202a !important;
+}
+input::placeholder, textarea::placeholder {
+  color: #697786 !important;
+  -webkit-text-fill-color: #697786 !important;
+  opacity: 1 !important;
+}
+[data-baseweb="select"] svg { fill: #34495e !important; color: #34495e !important; }
+input:-webkit-autofill, input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #17202a !important;
+  -webkit-box-shadow: 0 0 0 1000px #fff inset !important;
+}
 
 [data-testid="stDataFrame"], [data-testid="stTable"] {
   background: #fff;
@@ -187,6 +208,7 @@ button[role="tab"][aria-selected="true"] p { color: #fff !important; }
 }
 
 @media (max-width: 720px) {
+  :root { color-scheme: light !important; }
   .block-container { padding: 3.45rem 0.6rem 4rem; }
   h1 { font-size: 1.55rem !important; }
   h2 { font-size: 1.02rem !important; padding: .55rem .65rem !important; }
@@ -198,6 +220,16 @@ button[role="tab"][aria-selected="true"] p { color: #fff !important; }
     font-size: .74rem;
   }
   [data-baseweb="tab-list"] { overflow-x: auto; flex-wrap: nowrap; }
+  [data-baseweb="input"], [data-baseweb="input"] > div,
+  [data-baseweb="select"], [data-baseweb="select"] > div,
+  [data-baseweb="textarea"], [data-baseweb="textarea"] > div,
+  [data-testid="stNumberInputContainer"], [data-testid="stTextInputRootElement"] {
+    background-color: #ffffff !important;
+  }
+  input, textarea, [data-baseweb="select"] div {
+    color: #111827 !important;
+    -webkit-text-fill-color: #111827 !important;
+  }
 }
 </style>
 """
