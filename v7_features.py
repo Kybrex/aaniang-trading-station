@@ -52,6 +52,7 @@ def complete_stock_research(symbol: str, fmp_key: str = "") -> dict:
         "brief": research_brief(snapshot),
         "technical_score": score_result[0],
         "technical_checks": score_result[1],
+        "technical_history": technical.tail(252).copy(),
         "levels": levels,
         "patterns": patterns,
         "alerts": alerts,
