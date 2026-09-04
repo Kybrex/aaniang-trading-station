@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from v3_features import PRESETS, apply_screen, load_notes, load_snapshot, peer_rank, portfolio_health, research_brief, save_note, scan_symbols
+from v3_features import PRESETS, apply_screen, comparison_performance, load_notes, load_snapshot, peer_rank, portfolio_health, research_brief, save_note, scan_symbols
 from v3_pdf import research_pdf
 
 
@@ -26,6 +26,11 @@ def _scan(symbols: tuple[str, ...], fmp_key: str) -> pd.DataFrame:
 @st.cache_data(ttl=900, max_entries=50, show_spinner=False)
 def _single(symbol: str, fmp_key: str) -> dict | None:
     return load_snapshot(symbol, fmp_key)
+
+
+@st.cache_data(ttl=900, max_entries=20, show_spinner=False)
+def _comparison_history(symbols: tuple[str, ...]) -> pd.DataFrame:
+    return comparison_performance(list(symbols))
 
 
 def _symbols(text: str) -> list[str]:
@@ -100,13 +105,45 @@ def render() -> None:
 
     elif section.startswith("2"):
         st.subheader("Multi-stock comparison")
-        if universe.empty: return
-        choices = st.multiselect("Compare up to 30 companies", universe.Symbol.tolist(), default=universe.Symbol.head(5).tolist(), max_selections=30)
-        compared = universe[universe.Symbol.isin(choices)]
-        if compared.empty: return
-        score_data = compared.set_index("Symbol")[["Quality", "ROE", "Operating margin", "Revenue growth", "Earnings growth", "Value gap"]]
-        st.bar_chart(score_data, height=420)
-        _table(compared)
+        st.caption("Enter stock symbols directly. Loading the V3 research universe first is optional.")
+        default_compare = ", ".join(universe.Symbol.head(5).tolist()) if not universe.empty else "AAPL, MSFT, NVDA"
+        with st.form("direct_stock_comparison", border=True):
+            compare_text = st.text_input("Stock symbols to compare", default_compare, help="Comma separated; maximum 30 stocks")
+            bench_a, bench_b = st.columns(2)
+            include_sp500 = bench_a.checkbox("Compare with S&P 500 (SPY)", value=True)
+            include_nasdaq = bench_b.checkbox("Compare with Nasdaq-100 (QQQ)", value=True)
+            run_compare = st.form_submit_button("Load comparison", type="primary", icon=":material/compare_arrows:")
+        if run_compare:
+            stocks = _symbols(compare_text)[:30]
+            benchmarks = (["SPY"] if include_sp500 else []) + (["QQQ"] if include_nasdaq else [])
+            all_symbols = tuple(dict.fromkeys(stocks + benchmarks))
+            if not stocks: st.warning("Enter at least one stock symbol.")
+            else:
+                with st.spinner(f"Loading {len(all_symbols)} comparison symbols..."):
+                    st.session_state.v3_compare_data = _scan(all_symbols, fmp_key)
+                    st.session_state.v3_compare_history = _comparison_history(all_symbols)
+                    st.session_state.v3_compare_stocks = stocks
+                    st.session_state.v3_compare_benchmarks = benchmarks
+        compared = st.session_state.get("v3_compare_data", pd.DataFrame())
+        performance = st.session_state.get("v3_compare_history", pd.DataFrame())
+        if compared.empty and performance.empty:
+            st.info("Enter symbols and tap Load comparison. You do not need to load the research universe above.")
+        else:
+            if not performance.empty:
+                labels = {"SPY":"S&P 500 (SPY)", "QQQ":"Nasdaq-100 (QQQ)"}
+                chart = performance.rename(columns=labels)
+                st.subheader("One-year relative performance")
+                st.caption("Every series starts at 100, making stocks and indexes directly comparable.")
+                st.line_chart(chart, height=430)
+                returns = (performance.iloc[-1] - 100).sort_values(ascending=False).rename("1Y return %").reset_index(names="Symbol")
+                returns["Name"] = returns.Symbol.map(labels).fillna(returns.Symbol)
+                st.dataframe(returns[["Name", "1Y return %"]], hide_index=True, width="stretch", column_config={"1Y return %":st.column_config.NumberColumn(format="%.1f%%")})
+            if not compared.empty:
+                st.subheader("Fundamental comparison")
+                score_columns = [column for column in ["Quality", "ROE", "Operating margin", "Revenue growth", "Earnings growth", "Value gap"] if column in compared]
+                score_data = compared.set_index("Symbol")[score_columns].dropna(how="all")
+                if not score_data.empty: st.bar_chart(score_data, height=420)
+                _table(compared)
 
     elif section.startswith("3"):
         st.subheader("Advanced fundamental screener")
