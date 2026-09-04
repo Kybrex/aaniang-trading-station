@@ -22,7 +22,7 @@ def render() -> None:
     if st.button("Run complete research", type="primary", icon=":material/manage_search:", width="stretch"):
         try:
             with st.spinner("Running fundamentals, valuation, technicals, management, ownership, dividends, catalysts, and risk checks..."):
-                report = complete_stock_research(symbol, _secret("FMP_API_KEY"))
+                report = complete_stock_research(symbol, _secret("FMP_API_KEY"), universe)
                 st.session_state.v7_report = report
                 st.session_state.v7_pdf = complete_research_pdf(report)
         except Exception as exc:
@@ -34,11 +34,17 @@ def render() -> None:
         cols[1].metric("Quality", f"{snap.get('Quality', 0)}/100", border=True)
         cols[2].metric("Technical", f"{report['technical_score']}/100", border=True)
         cols[3].metric("Management", f"{report['management_score']}/100", border=True)
+        score_cols = st.columns(2)
+        score_cols[0].metric("Professional score", f"{report['overall_score']}/100", border=True)
+        score_cols[1].metric("Research classification", report["classification"], border=True)
         st.success(f"Complete report ready for {report['symbol']}. Included all ticker-only modules; {len(report['errors'])} data feeds reported limitations.")
         with st.expander("AI Research Summary", expanded=True):
             for heading, narrative in report.get("ai_summary", {}).items():
                 st.markdown(f"**{heading}**")
                 st.write(narrative)
+        with st.expander("Professional report additions"):
+            st.write("Overall score · Bull/Base/Bear valuation · Financial trends · Risk dashboard · Peer comparison · Catalyst timeline · Analyst estimates · Trade plan · Investment checklist")
+            st.dataframe(report["checklist"], hide_index=True, width="stretch")
         st.download_button("Download complete stock research (PDF)", st.session_state.v7_pdf,
             f"{report['symbol']}-complete-research.pdf", "application/pdf", icon=":material/picture_as_pdf:", type="primary")
 
