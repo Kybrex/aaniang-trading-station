@@ -1,0 +1,40 @@
+"""Streamlit UI for the AANIANG one-click complete research report."""
+from __future__ import annotations
+
+import pandas as pd
+import streamlit as st
+
+from v7_features import complete_stock_research
+from v7_pdf import complete_research_pdf
+
+
+def _secret(name: str) -> str:
+    try: return str(st.secrets.get(name, ""))
+    except Exception: return ""
+
+
+def render() -> None:
+    st.divider(); st.header("AANIANG V7 Complete Stock Research")
+    st.caption("Select one ticker, run the stock-specific research modules together, and download a consolidated PDF.")
+    universe = st.session_state.get("v3_universe_data", pd.DataFrame())
+    symbols = universe.Symbol.tolist() if not universe.empty and "Symbol" in universe else []
+    symbol = st.selectbox("Stock symbol", symbols, key="v7_symbol") if symbols else st.text_input("Stock symbol", "AAPL", key="v7_symbol").strip().upper()
+    if st.button("Run complete research", type="primary", icon=":material/manage_search:", width="stretch"):
+        try:
+            with st.spinner("Running fundamentals, valuation, technicals, management, ownership, dividends, catalysts, and risk checks..."):
+                report = complete_stock_research(symbol, _secret("FMP_API_KEY"))
+                st.session_state.v7_report = report
+                st.session_state.v7_pdf = complete_research_pdf(report)
+        except Exception as exc:
+            st.error(f"Research could not be completed: {exc}")
+    report = st.session_state.get("v7_report")
+    if report:
+        snap = report["snapshot"]; cols = st.columns(4)
+        cols[0].metric("Price", f"${snap.get('Price', 0):,.2f}", border=True)
+        cols[1].metric("Quality", f"{snap.get('Quality', 0)}/100", border=True)
+        cols[2].metric("Technical", f"{report['technical_score']}/100", border=True)
+        cols[3].metric("Management", f"{report['management_score']}/100", border=True)
+        st.success(f"Complete report ready for {report['symbol']}. Included all ticker-only modules; {len(report['errors'])} data feeds reported limitations.")
+        st.download_button("Download complete stock research (PDF)", st.session_state.v7_pdf,
+            f"{report['symbol']}-complete-research.pdf", "application/pdf", icon=":material/picture_as_pdf:", type="primary")
+
