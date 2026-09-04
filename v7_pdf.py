@@ -152,6 +152,29 @@ def complete_research_pdf(report: dict) -> bytes:
         Paragraph("Investment Checklist", styles["Section"]), _table(report.get("checklist", pd.DataFrame()), styles),
         Paragraph("Catalyst Timeline", styles["Section"]), _table(report.get("calendar", pd.DataFrame()), styles)])
 
+    filings = report.get("sec_filings", pd.DataFrame())
+    filing_columns = [c for c in ["form","filingDate","reportDate","primaryDocument"] if c in filings]
+    filings_compact = filings[filing_columns].head(8) if filing_columns else pd.DataFrame()
+    story.extend([Paragraph("V7 Due-Diligence Pack", styles["Section"]),
+        Paragraph("1. SEC Filing Summary", styles["Section"]), _table(filings_compact, styles, 8),
+        Paragraph("2. Earnings Revision Monitor", styles["Section"]), _table(report.get("estimate_revisions", pd.DataFrame()), styles, 12),
+        Paragraph("3. Economic Moat Score", styles["Section"]), Paragraph(f"Moat score: <b>{report.get('moat_score',0)}/100</b>", styles["BodyText"]), _table(report.get("moat_evidence", pd.DataFrame()), styles),
+        Paragraph("4. Recession Resilience", styles["Section"]), Paragraph(f"Resilience score: <b>{report.get('recession_score',0)}/100</b>", styles["BodyText"]), _table(report.get("recession_evidence", pd.DataFrame()), styles),
+        Paragraph("5. Cash-Flow Quality", styles["Section"]), _table(report.get("cash_flow_quality", pd.DataFrame()), styles),
+        Paragraph("6. Shareholder Dilution and Buybacks", styles["Section"]), _table(report.get("dilution_buybacks", pd.DataFrame()), styles)])
+
+    story.extend([PageBreak(), Paragraph("7. Historical Valuation Context", styles["Section"]),
+        Paragraph("Uses available current valuation fields and analyst-target context; unavailable historical multiples are not estimated.", styles["Meta"]), _table(report.get("historical_valuation", pd.DataFrame()), styles),
+        Paragraph("8. Earnings Surprise History", styles["Section"]), _table(report.get("earnings_surprises", pd.DataFrame()), styles, 8),
+        Paragraph("9. Automated Red-Flag Detection", styles["Section"])])
+    for flag in report.get("red_flags", []): story.append(Paragraph(f"- {escape(str(flag))}", styles["BodyText"]))
+    story.extend([Paragraph("10. Competitive Advantage Comparison", styles["Section"]), _table(report.get("competitive_comparison", pd.DataFrame()), styles, 10),
+        Paragraph("11. Probability-Based 12-Month Outlook", styles["Section"]),
+        Paragraph("Statistical range derived from historical daily return and volatility; it is not a price prediction.", styles["Meta"]), _table(report.get("probability_outlook", pd.DataFrame()), styles),
+        Paragraph("12. Research Sources and Method Notes", styles["Section"]),
+        Paragraph(f"Generated: {report['generated_at'].strftime('%Y-%m-%d %H:%M UTC')} | Company source: {escape(str(snapshot.get('Source','Unavailable')))} | Prices: Yahoo Finance adjusted history | Filings: SEC EDGAR when available | Calculations: AANIANG transparent rule-based models.", styles["BodyText"]),
+        Paragraph("Unavailable fields remain unavailable and are not replaced with invented values. Scores are educational research aids, not recommendations.", styles["Meta"])])
+
     story.extend([PageBreak(), Paragraph("Technical Analysis", styles["Section"]),
         Paragraph("One-year price chart with 20-, 50-, and 200-session moving averages plus detected support and resistance.", styles["Meta"]),
         _technical_chart(report.get("technical_history", pd.DataFrame()), report["levels"]), Spacer(1, 8),
