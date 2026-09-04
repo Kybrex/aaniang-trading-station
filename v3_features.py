@@ -84,10 +84,12 @@ def yahoo_snapshot(symbol: str) -> dict | None:
         if not price:
             return None
         target = num(info.get("targetMeanPrice"))
+        fundamental_fields = ["returnOnEquity", "operatingMargins", "revenueGrowth", "earningsGrowth", "debtToEquity", "currentRatio", "freeCashflow"]
+        fundamentals_available = sum(info.get(key) is not None for key in fundamental_fields) >= 3
         return {
             "Symbol": symbol, "Company": info.get("shortName") or info.get("longName") or symbol,
             "Sector": info.get("sector") or "Unknown", "Industry": info.get("industry") or "Unknown",
-            "Price": price, "Market cap": num(info.get("marketCap")), "Quality": quality_from_info(info),
+            "Price": price, "Market cap": num(info.get("marketCap")), "Quality": quality_from_info(info) if fundamentals_available else None,
             "ROE": _pct(info, "returnOnEquity"), "Operating margin": _pct(info, "operatingMargins"),
             "Revenue growth": _pct(info, "revenueGrowth"), "Earnings growth": _pct(info, "earningsGrowth"),
             "Debt/Equity": num(info.get("debtToEquity")), "Current ratio": num(info.get("currentRatio")),
@@ -98,6 +100,7 @@ def yahoo_snapshot(symbol: str) -> dict | None:
             "1M return": _return(history, 21), "6M return": _return(history, 126), "1Y return": _return(history, 250),
             "Description": info.get("longBusinessSummary") or "", "Website": info.get("website") or "",
             "Currency": info.get("currency") or "USD", "Source": "Yahoo Finance",
+            "Fundamentals available": fundamentals_available,
         }
     except Exception:
         return None
@@ -173,14 +176,14 @@ def peer_rank(frame: pd.DataFrame, symbol: str) -> pd.DataFrame:
 
 
 def research_brief(row: dict) -> dict[str, list[str]]:
-    quality = num(row.get("Quality")) or 0; growth = num(row.get("Revenue growth")); earnings = num(row.get("Earnings growth")); margin = num(row.get("Operating margin")); debt = num(row.get("Debt/Equity")); gap = num(row.get("Value gap")); beta = num(row.get("Beta"))
+    measured_quality = num(row.get("Quality")); quality = measured_quality or 0; growth = num(row.get("Revenue growth")); earnings = num(row.get("Earnings growth")); margin = num(row.get("Operating margin")); debt = num(row.get("Debt/Equity")); gap = num(row.get("Value gap")); beta = num(row.get("Beta"))
     bull, bear, moat, questions = [], [], [], []
     if quality >= 70: bull.append(f"Strong explainable quality score of {quality:.0f}/100.")
     if growth is not None and growth >= 10: bull.append(f"Revenue growth is {growth:.1f}%.")
     if earnings is not None and earnings >= 10: bull.append(f"Earnings growth is {earnings:.1f}%.")
     if gap is not None and gap >= 15: bull.append(f"Analyst consensus implies {gap:.1f}% upside, subject to estimate risk.")
     if margin is not None and margin >= 15: moat.append(f"Operating margin of {margin:.1f}% may indicate pricing power or scale advantages.")
-    if quality < 50: bear.append(f"Quality score is only {quality:.0f}/100.")
+    if measured_quality is not None and quality < 50: bear.append(f"Quality score is only {quality:.0f}/100.")
     if growth is not None and growth < 0: bear.append(f"Revenue is contracting by {abs(growth):.1f}%.")
     if earnings is not None and earnings < 0: bear.append(f"Earnings are contracting by {abs(earnings):.1f}%.")
     if debt is not None and debt > 150: bear.append(f"Debt/equity is elevated at {debt:.1f}%.")
@@ -220,5 +223,4 @@ def portfolio_health(holdings: pd.DataFrame, snapshots: pd.DataFrame) -> tuple[p
     weighted_beta = float((merged.Beta.fillna(1) * merged.Weight / 100).sum()) if total else 0
     metrics = {"Value": total, "Gain/Loss": float(merged["Gain/Loss"].sum()), "Largest position": float(merged.Weight.max()) if not merged.empty else 0, "Largest sector": float(sector_weights.max()) if not sector_weights.empty else 0, "Weighted beta": weighted_beta, "Holdings": len(merged)}
     return merged, metrics
-
 
