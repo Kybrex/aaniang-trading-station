@@ -143,7 +143,7 @@ def complete_research_pdf(report: dict) -> bytes:
         Paragraph("Financial Trend Chart (first reported year = 100)", styles["Section"]), _financial_trend_chart(report.get("financial_trends", pd.DataFrame())),
         Paragraph("Financial Trend Data", styles["Section"]), _table(report.get("financial_trends", pd.DataFrame()), styles)])
 
-    story.extend([PageBreak(), Paragraph("Risk Dashboard", styles["Section"]), _table(report.get("risk_dashboard", pd.DataFrame()), styles),
+    story.extend([Paragraph("Risk Dashboard", styles["Section"]), _table(report.get("risk_dashboard", pd.DataFrame()), styles),
         Paragraph("Peer Comparison", styles["Section"]), _table(report.get("peer_comparison", pd.DataFrame()), styles),
         Paragraph("Analyst Estimate Snapshot", styles["Section"]), _table(report.get("analyst_estimates", pd.DataFrame()), styles),
         Paragraph("Automatic Trade Plan", styles["Section"]), _table(report.get("trade_plan", pd.DataFrame()), styles),
@@ -157,10 +157,13 @@ def complete_research_pdf(report: dict) -> bytes:
         _table(pd.DataFrame(report["technical_checks"]), styles), Paragraph("Support and Resistance", styles["Section"]), _table(report["levels"], styles)])
     pattern_frame = pd.DataFrame(report["patterns"])
     story.extend([Paragraph("Pattern Detection", styles["Section"]), _table(pattern_frame, styles), Paragraph("Active Technical Alerts", styles["Section"]), Paragraph(escape("; ".join(report["alerts"]) if report["alerts"] else "No configured technical alert is active."), styles["BodyText"])])
-    story.extend([Paragraph("Management Quality", styles["Section"]), Paragraph(f"Score: <b>{report['management_score']}/100</b>", styles["BodyText"])])
+    management_label = f"{report['management_score']}/100" if report["management_score"] is not None else "Unavailable"
+    story.extend([Paragraph("Management Quality", styles["Section"]), Paragraph(f"Score: <b>{management_label}</b>", styles["BodyText"])])
     for reason in report["management_reasons"]: story.append(Paragraph(escape(reason), styles["BodyText"]))
 
-    story.extend([PageBreak(), Paragraph("Dividend Intelligence", styles["Section"]), _table(pd.DataFrame([report["dividend_metrics"]]), styles), _table(report["dividend_history"], styles), Paragraph("Insider Activity", styles["Section"]), _table(report["insiders"], styles), Paragraph("Institutional Ownership", styles["Section"]), _table(report["institutions"], styles), Paragraph("Major Holders", styles["Section"]), _table(report["major_holders"], styles), Paragraph("Catalyst Calendar", styles["Section"]), _table(report["calendar"], styles), Paragraph("Recent News", styles["Section"]), _table(report["news"], styles)])
+    dividend_recent = report["dividend_history"].tail(10) if not report["dividend_history"].empty else report["dividend_history"]
+    news_compact = report["news"].drop(columns=["URL"], errors="ignore").head(6)
+    story.extend([Paragraph("Dividend Intelligence", styles["Section"]), _table(pd.DataFrame([report["dividend_metrics"]]), styles), _table(dividend_recent, styles, 10), Paragraph("Insider Activity", styles["Section"]), _table(report["insiders"], styles, 8), Paragraph("Institutional Ownership", styles["Section"]), _table(report["institutions"], styles, 8), Paragraph("Major Holders", styles["Section"]), _table(report["major_holders"], styles, 8), Paragraph("Catalyst Calendar", styles["Section"]), _table(report["calendar"], styles, 8), Paragraph("Recent News", styles["Section"]), _table(news_compact, styles, 6)])
     story.append(Paragraph("Modules Requiring Additional Inputs", styles["Section"]))
     for item in report["input_required"]: story.append(Paragraph(f"- {escape(item)}", styles["BodyText"]))
     if report["errors"]:
