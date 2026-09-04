@@ -31,9 +31,9 @@ def render() -> None:
     if report:
         snap = report["snapshot"]; cols = st.columns(4)
         cols[0].metric("Price", f"${snap.get('Price', 0):,.2f}", border=True)
-        cols[1].metric("Quality", f"{snap.get('Quality', 0)}/100", border=True)
+        cols[1].metric("Quality", f"{snap['Quality']}/100" if snap.get("Quality") is not None else "Unavailable", border=True)
         cols[2].metric("Technical", f"{report['technical_score']}/100", border=True)
-        cols[3].metric("Management", f"{report['management_score']}/100", border=True)
+        cols[3].metric("Management", f"{report['management_score']}/100" if report["management_score"] is not None else "Unavailable", border=True)
         score_cols = st.columns(2)
         score_cols[0].metric("Professional score", f"{report['overall_score']}/100", border=True)
         score_cols[1].metric("Research classification", report["classification"], border=True)
