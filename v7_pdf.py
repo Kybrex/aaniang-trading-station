@@ -103,6 +103,10 @@ def complete_research_pdf(report: dict) -> bytes:
         ["Analyst value gap", _value(snapshot.get("Value gap"), "%"), "1Y return", _value(snapshot.get("1Y return"), "%")],
     ]
     story.extend([Paragraph("Executive Dashboard", styles["Section"]), Table(key_metrics, colWidths=[1.25*inch, 1.5*inch, 1.35*inch, 1.5*inch], style=[("GRID",(0,0),(-1,-1),.3,colors.HexColor("#CBD5E1")),("BACKGROUND",(0,0),(0,-1),colors.HexColor("#E8F1F5")),("BACKGROUND",(2,0),(2,-1),colors.HexColor("#E8F1F5")),("PADDING",(0,0),(-1,-1),6)])])
+    story.append(Paragraph("AI Research Summary", styles["Section"]))
+    for heading, narrative in report.get("ai_summary", {}).items():
+        story.append(Paragraph(f"<b>{escape(str(heading))}</b>", styles["BodyText"]))
+        story.append(Paragraph(escape(str(narrative)), styles["BodyText"]))
     story.extend([Paragraph("Company and Fundamentals", styles["Section"]), Paragraph(escape(str(snapshot.get("Description") or "No business description returned.")), styles["BodyText"])])
     fundamentals = pd.DataFrame({"Metric":["Sector","Industry","ROE %","Operating margin %","Revenue growth %","Earnings growth %","Debt/Equity","Current ratio","Trailing P/E","Forward P/E","Dividend yield %","Beta","Analyst target"], "Value":[snapshot.get("Sector"),snapshot.get("Industry"),snapshot.get("ROE"),snapshot.get("Operating margin"),snapshot.get("Revenue growth"),snapshot.get("Earnings growth"),snapshot.get("Debt/Equity"),snapshot.get("Current ratio"),snapshot.get("Trailing P/E"),snapshot.get("Forward P/E"),snapshot.get("Dividend yield"),snapshot.get("Beta"),snapshot.get("Analyst target")]})
     story.append(_table(fundamentals, styles, 20))
