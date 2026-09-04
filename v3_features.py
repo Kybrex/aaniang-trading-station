@@ -146,6 +146,21 @@ def scan_symbols(symbols: list[str], fmp_key: str = "", progress: Callable[[int,
     return frame.sort_values(["Quality", "Market cap"], ascending=False, na_position="last").reset_index(drop=True) if not frame.empty else frame
 
 
+def comparison_performance(symbols: list[str], period: str = "1y") -> pd.DataFrame:
+    """Return normalized total-price performance for stocks and benchmarks."""
+    clean = list(dict.fromkeys(str(symbol).strip().upper() for symbol in symbols if str(symbol).strip()))[:32]
+    if not clean: return pd.DataFrame()
+    data = yf.download(clean, period=period, auto_adjust=True, progress=False, threads=True)
+    if data.empty: return pd.DataFrame()
+    close = data["Close"] if isinstance(data.columns, pd.MultiIndex) else data[["Close"]].rename(columns={"Close": clean[0]})
+    if isinstance(close, pd.Series): close = close.to_frame(clean[0])
+    normalized = close.ffill().dropna(how="all")
+    for column in normalized:
+        first = normalized[column].dropna()
+        normalized[column] = normalized[column] / first.iloc[0] * 100 if not first.empty and first.iloc[0] else None
+    return normalized.dropna(how="all")
+
+
 def apply_screen(frame: pd.DataFrame, rules: dict) -> pd.DataFrame:
     if frame.empty: return frame
     result = frame.copy()
