@@ -57,7 +57,7 @@ def render():
             st.error(f'Company data could not be loaded: {exc}')
     bundle = st.session_state.get('iw_bundle')
     if not bundle:
-        st.info('Load a company to open its six investment tools. Your saved notebook is available above.')
+        st.info('Enter a ticker above and click Load investment overview to display all six tools: Company scorecard, Moat evidence, Buy-price watchlist, Investment thesis, Quarterly progress and Peer comparison.')
         st.download_button('Download investment notebook', export_notebook(book), 'aaniang-investment-notebook.json', 'application/json', key='iw_download')
         return
     ticker = bundle['symbol']; info = bundle['info']; record = book.setdefault(ticker, {})

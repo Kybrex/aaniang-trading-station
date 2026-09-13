@@ -29,7 +29,7 @@ with logo_col:
 with title_col:
     st.title("AANIANG Trading Station")
 st.caption("Yahoo Finance adjusted daily data—not a guaranteed live quote | educational research tool, not investment advice")
-with st.expander('Investment workspace: company quality, moat and thesis', expanded=False):
+with st.expander('Investment workspace: company quality, moat and thesis', expanded=True):
     investment_ui.render()
 with st.sidebar:
     st.header("Scan settings")
