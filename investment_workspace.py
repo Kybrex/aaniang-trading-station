@@ -107,7 +107,7 @@ def validate_record(record):
             if review.get(key) is not None and number(review[key]) is None: raise ValueError('Invalid quarterly value.')
         for key in ['period','note','saved','thesis_updated']:
             if review.get(key) is not None and (not isinstance(review[key],str) or len(review[key])>10000): raise ValueError('Invalid review text.')
-    for key in ['reason','assumptions','thesis','catalysts','invalidation']:
+    for key in ['reason','assumptions','thesis','catalysts','invalidation','guidance_before','guidance_after','guidance_sources']:
         if key in record and (not isinstance(record[key],str) or len(record[key])>10000): raise ValueError('Invalid note text.')
     if 'positive_fcf' in record and not isinstance(record['positive_fcf'],bool): raise ValueError('Invalid cash-flow expectation.')
     evidence=record.get('moat',[])
