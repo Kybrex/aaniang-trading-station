@@ -16,6 +16,7 @@ import v4_ui
 import v5_ui
 import v6_ui
 import v7_ui
+import investment_ui
 # V7 Due-Diligence Pack deployment
 # Direct stock and benchmark comparison deployment
 from ui_theme import apply_theme
@@ -28,6 +29,8 @@ with logo_col:
 with title_col:
     st.title("AANIANG Trading Station")
 st.caption("Yahoo Finance adjusted daily data—not a guaranteed live quote | educational research tool, not investment advice")
+with st.expander('Investment workspace: company quality, moat and thesis', expanded=False):
+    investment_ui.render()
 with st.sidebar:
     st.header("Scan settings")
     direction = st.selectbox("Direction", ["Both", "Long", "Short"])

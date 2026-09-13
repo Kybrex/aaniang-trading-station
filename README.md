@@ -134,3 +134,16 @@ Important notes:
 - Scenario values are user-controlled estimates, not price forecasts.
 - Tax calculations are educational FIFO estimates and do not replace brokerage tax records or professional advice.
 - The management score is a quantitative proxy based on public metrics, not an assessment of character or non-public board information.
+# Company investment workspace
+
+The expandable investment workspace at the top of the V7 app adds six tools:
+
+- Company scorecard: profitability, growth, cash flow, debt and valuation, with visible assessment rules and missing-data status.
+- Moat evidence: your competitive-advantage assessment, filing URLs, evidence, threats and review dates. Source presence is not automatic verification.
+- Buy-price watchlist: your fair value, maximum buy price, assumptions and reasons for waiting. Refresh saved companies to see price status; no background notifications or orders.
+- Investment thesis: your ownership case, expectations, reconsideration conditions and quarterly growth, margin and cash-flow thresholds.
+- Quarterly progress: latest reported quarter versus your saved expectations, plus a saved review baseline. Year-over-year growth requires a comparable prior-year quarter. Missing cash flow is never taken from a different quarter.
+- Peer comparison: select three competitors and compare profitability, growth, leverage, valuation and data coverage.
+
+Notes are private to the browser session. Use **Download investment notebook** to keep them and **Restore notebook** to load them in a later session. Reloading or closing the browser can end the session. This avoids storing personal theses in a shared server file. Public company data is cached for up to 15 minutes; personal notes are never cached globally. The existing V2-V7 modules and PDF exports remain available.
+
