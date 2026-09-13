@@ -32,6 +32,11 @@ def render():
     st.header('Company investment workspace')
     st.caption('Company quality, competitive advantage, buy prices and the investment case in one place.')
     book = st.session_state.setdefault('investment_book', {})
+    import cloud_ui
+    import research_ui
+    cloud_ui.render()
+    book = st.session_state.setdefault('investment_book', {})
+    research_ui.warnings(book)
     with st.expander('Save or restore your investment notebook'):
         st.caption('Notes stay in this browser session. Download your notebook before closing or refreshing the page; restore it here next time. They are not stored in a shared server file.')
         upload = st.file_uploader('Restore notebook (.json)', type=['json'], key='iw_upload')
@@ -41,7 +46,7 @@ def render():
                 st.session_state.investment_book = restored['companies']
                 # Clear editor drafts so imported values appear immediately.
                 for key in list(st.session_state):
-                    if key.startswith('iw_edit_'): del st.session_state[key]
+                    if key.startswith(('iw_edit_','research_guidance_','research_warning_rows')): del st.session_state[key]
                 st.rerun()
             except (ValueError, TypeError, UnicodeError) as exc: st.error(str(exc))
     with st.form('iw_search'):
@@ -189,4 +194,5 @@ def render():
             st.dataframe(pd.DataFrame(rows),hide_index=True,width='stretch')
             for error in errors: st.warning(error)
             st.caption('Select genuine competitors yourself. Ratios avoid comparing absolute values in different currencies; reporting dates, accounting policies and business mixes may still differ. Favorable checks are the transparent scorecard rules, not a peer ranking.')
+    research_ui.render(bundle,record)
     st.download_button('Download investment notebook', export_notebook(book), 'aaniang-investment-notebook.json', 'application/json', key='iw_download')

@@ -136,6 +136,10 @@ Important notes:
 - The management score is a quantitative proxy based on public metrics, not an assessment of character or non-public board information.
 # Company investment workspace
 
+Research extensions add automatic SEC annual-filing excerpts (contact email required), selected-filing guidance/risk passages, comparable-quarter earnings changes, a side-by-side guidance text diff, a 3-by-3 discounted equity cash-flow sensitivity table, annual capital-allocation review and an on-demand thesis-warning dashboard. Excerpts are keyword-selected and need source review. Guidance text comparison uses the passages supplied by the user; it does not infer missing management guidance.
+
+Optional authenticated cross-device notebook saving uses a dedicated Supabase project with row-level ownership policies and optimistic version checks. It stays disabled until configured. Follow [CLOUD_SETUP.md](CLOUD_SETUP.md) and run [cloud_setup.sql](cloud_setup.sql). Do not use a service-role key or reuse another app's database. Public data caches never contain notebooks, credentials or account sessions.
+
 The expandable investment workspace at the top of the V7 app adds six tools:
 
 - Company scorecard: profitability, growth, cash flow, debt and valuation, with visible assessment rules and missing-data status.
@@ -146,4 +150,3 @@ The expandable investment workspace at the top of the V7 app adds six tools:
 - Peer comparison: select three competitors and compare profitability, growth, leverage, valuation and data coverage.
 
 Notes are private to the browser session. Use **Download investment notebook** to keep them and **Restore notebook** to load them in a later session. Reloading or closing the browser can end the session. This avoids storing personal theses in a shared server file. Public company data is cached for up to 15 minutes; personal notes are never cached globally. The existing V2-V7 modules and PDF exports remain available.
-
