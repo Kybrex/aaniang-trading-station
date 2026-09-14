@@ -20,6 +20,7 @@ import investment_ui
 # V7 Due-Diligence Pack deployment
 # Direct stock and benchmark comparison deployment
 from ui_theme import apply_theme
+from scan_dashboard import market_snapshot, render_market, render_comparison, render_candidate, position_size, utc_now
 
 st.set_page_config(page_title="AANIANG Trading Station", page_icon="S", layout="wide")
 apply_theme()
@@ -54,8 +55,8 @@ def get_universe(choice: str) -> list[str]:
     return load_universe(broad=choice.startswith("Broad"))
 
 @st.cache_data(ttl=900, show_spinner=False)
-def cached_market_regime() -> dict[str, str]:
-    return market_regime()
+def cached_market_regime() -> dict:
+    return market_snapshot()
 
 if "results" not in st.session_state:
     st.session_state.results = pd.DataFrame()
@@ -64,7 +65,7 @@ if "value_results" not in st.session_state:
 if st.button("Scan market", type="primary", width="stretch"):
     symbols = get_universe(universe_choice)[:int(universe_limit)]
     # Fetch the three small benchmark histories before the large market scan.
-    st.session_state.market_regime = cached_market_regime()
+    st.session_state.scan_market_snapshot = cached_market_regime()
     settings = ScanSettings(direction, min_score, max_results, min_price, int(min_volume), equity, risk_pct, batch_size)
     progress = st.progress(0, text="Starting Yahoo Finance scan...")
     status = st.empty()
@@ -76,28 +77,36 @@ if st.button("Scan market", type="primary", width="stretch"):
         results = annotate_earnings(add_relative_strength(results), earnings_days)
         if earnings_filter: results = results[results["Earnings safe"]].reset_index(drop=True)
     progress.empty(); st.session_state.results = results
+    st.session_state.scan_completed_at = utc_now()
     if skipped >= len(symbols): status.error("Yahoo Finance returned no usable data. Wait a few minutes, then retry with the liquid fallback and 50–250 symbols.")
     else: status.success(f"Finished. {len(results)} candidates found; {skipped} symbols skipped/unavailable.")
 
 results = st.session_state.results
+if st.session_state.get("scan_market_snapshot"):
+    render_market(st.session_state.scan_market_snapshot)
+    if st.button("Refresh market context"):
+        cached_market_regime.clear()
+        st.session_state.scan_market_snapshot = cached_market_regime()
+        st.rerun()
+if st.session_state.get("scan_completed_at"):
+    st.caption(f"Candidate scan completed: {st.session_state.scan_completed_at}. Each candidate lists its own price-data date.")
 if results.empty:
-    st.info("Set filters and click Scan market. The first broad scan can take several minutes.")
+    st.info("No candidates matched this scan. Adjust the filters and scan again." if st.session_state.get("scan_completed_at")
+            else "Set filters and click Scan market. The first broad scan can take several minutes.")
 else:
-    cols = st.columns(3)
-    regime = st.session_state.get("market_regime") or cached_market_regime()
-    for column, (name, status) in zip(cols, regime.items()): column.metric(name, status)
-    if any(status == "Unavailable" for status in regime.values()):
-        if st.button("Retry unavailable market context"):
-            cached_market_regime.clear()
-            st.session_state.market_regime = cached_market_regime()
-            st.rerun()
     st.subheader(f"Ranked opportunities ({len(results)})")
     display = results[["Symbol", "Data date", "Score", "Signal", "Setup", "Entry", "Stop", "Risk/Share", "20D Momentum", "60D Momentum", "RS vs SPY", "Earnings", "Shares", "Trade plan"]]
     st.dataframe(display, width="stretch", hide_index=True, column_config={"Score": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%d"), "Entry": st.column_config.NumberColumn(format="$%.2f"), "Stop": st.column_config.NumberColumn(format="$%.2f"), "Risk/Share": st.column_config.NumberColumn(format="$%.2f"), "20D Momentum": st.column_config.NumberColumn(format="%.1f%%"), "60D Momentum": st.column_config.NumberColumn(format="%.1f%%"), "RS vs SPY": st.column_config.NumberColumn(format="%.1f%%")})
+    render_comparison(results)
     symbol = st.selectbox("Open candidate chart", results["Symbol"].tolist())
     selected = results.loc[results.Symbol == symbol].iloc[0]
-    capped_shares = min(int(selected.Shares), int((equity * max_position_pct / 100) / selected.Entry))
+    try:
+        capped_shares = position_size(selected.Entry, selected.Stop, equity * max_position_pct / 100,
+                                      equity, risk_pct, max_position_pct, selected.Signal)["limited_shares"]
+    except ValueError:
+        capped_shares = 0
     st.markdown(f"**{selected.Signal} {selected.Setup}** | {selected['Trade plan']}")
+    render_candidate(selected, equity, risk_pct, max_position_pct)
     a, b, c = st.columns(3)
     a.metric("Risk budget", f"${equity * risk_pct / 100:,.0f}"); b.metric("Capped position", f"{capped_shares:,} shares"); c.metric("Portfolio heat limit", f"${equity * max_portfolio_risk / 100:,.0f}")
     with st.expander("Enlarged interactive chart", expanded=True):

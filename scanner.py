@@ -70,7 +70,12 @@ def candidate(symbol: str, frame: pd.DataFrame, s: ScanSettings) -> dict | None:
     data_date = pd.Timestamp(frame.index[-1]).date().isoformat()
     return {"Symbol": symbol, "Data date": data_date, "Score": score, "Signal": side, "Entry": entry, "Stop": stop, "Risk/Share": risk,
             "20D Momentum": mom20, "60D Momentum": mom60, "Shares": shares, "Target 1": target1, "Target 2": target2,
-            "Support": support, "Resistance": resistance, "Setup": setup_type, "Trade plan": plan}
+            "Support": support, "Resistance": resistance, "Setup": setup_type, "Trade plan": plan,
+            "EMA20": ema20, "EMA50": ema50, "SMA200": sma200, "EMA20 prior": ema20_past,
+            "ATR14": atr, "Volume ratio": volume_ratio, "Session open": current_open,
+            "Session high": current_high, "Session low": current_low,
+            "Trend points": trend_points, "Momentum points": momentum_points,
+            "Volume points": volume_points, "Setup points": setup_points, "Extension penalty": extension_penalty}
 
 def scan_market(symbols: list[str], s: ScanSettings, progress: Callable[[int, int, str], None]) -> tuple[pd.DataFrame, int]:
     rows: list[dict] = []; skipped = 0; total = len(symbols); consecutive_empty_batches = 0
