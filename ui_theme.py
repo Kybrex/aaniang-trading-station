@@ -84,6 +84,17 @@ hr { border-color: #c7d0d9 !important; margin: 1.25rem 0 !important; }
 }
 [data-testid="stMetricLabel"] { color: var(--aa-muted) !important; font-weight: 650; }
 [data-testid="stMetricValue"] { color: var(--aa-navy) !important; font-weight: 780; }
+/* Let long values, including market risk labels, expand their cards. */
+[data-testid="stMetricValue"],
+[data-testid="stMetricValue"] > div,
+[data-testid="stMetricValue"] [data-testid="stMarkdownContainer"],
+[data-testid="stMetricValue"] p {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere;
+  height: auto !important;
+}
 
 [data-testid="stForm"], [data-testid="stExpander"], [data-testid="stVerticalBlockBorderWrapper"] {
   background: rgba(255,255,255,0.92);
