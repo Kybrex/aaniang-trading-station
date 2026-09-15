@@ -151,6 +151,25 @@ input, textarea,
   -webkit-text-fill-color: #17202a !important;
   caret-color: #17202a !important;
 }
+/* Paint the editable surface itself: mobile dark themes can color it
+   independently of the surrounding Base Web container. */
+[data-testid="stTextArea"] textarea,
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] input,
+[data-testid="stDateInput"] input,
+[data-testid="stTimeInput"] input {
+  background-color: #ffffff !important;
+  color: #17202a !important;
+  -webkit-text-fill-color: #17202a !important;
+  caret-color: #17202a !important;
+  color-scheme: light !important;
+}
+[data-testid="stTextArea"] [data-baseweb="base-input"],
+[data-testid="stTextInput"] [data-baseweb="base-input"],
+[data-testid="stNumberInput"] [data-baseweb="base-input"] {
+  background-color: #ffffff !important;
+}
+
 input::placeholder, textarea::placeholder {
   color: #697786 !important;
   -webkit-text-fill-color: #697786 !important;
