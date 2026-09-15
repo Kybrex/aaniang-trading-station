@@ -100,6 +100,10 @@ def yahoo_snapshot(symbol: str) -> dict | None:
             "1M return": _return(history, 21), "6M return": _return(history, 126), "1Y return": _return(history, 250),
             "Description": info.get("longBusinessSummary") or "", "Website": info.get("website") or "",
             "Currency": info.get("currency") or "USD", "Source": "Yahoo Finance",
+            "Financial currency": info.get("financialCurrency"),
+            "Trailing EPS": num(info.get("trailingEps")), "Book value/share": num(info.get("bookValue")),
+            "Annual dividend/share": num(info.get("dividendRate")),
+            "Snapshot retrieved": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
             "Fundamentals available": fundamentals_available,
         }
     except Exception:
@@ -238,4 +242,3 @@ def portfolio_health(holdings: pd.DataFrame, snapshots: pd.DataFrame) -> tuple[p
     weighted_beta = float((merged.Beta.fillna(1) * merged.Weight / 100).sum()) if total else 0
     metrics = {"Value": total, "Gain/Loss": float(merged["Gain/Loss"].sum()), "Largest position": float(merged.Weight.max()) if not merged.empty else 0, "Largest sector": float(sector_weights.max()) if not sector_weights.empty else 0, "Weighted beta": weighted_beta, "Holdings": len(merged)}
     return merged, metrics
-

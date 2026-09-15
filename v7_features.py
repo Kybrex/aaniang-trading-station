@@ -151,11 +151,8 @@ def complete_stock_research(symbol: str, fmp_key: str = "", universe: pd.DataFra
         peers = peers[(peers.Sector == snapshot.get("Sector")) | (peers.Symbol == symbol)].copy()
     professional = _professional_sections(snapshot, technical, levels, score_result[0], management[0], peers)
     trends, trend_error = _safe(lambda: _financial_trends(symbol), pd.DataFrame())
-    if trend_error: errors["Financial trends"] = trend_error
     sec_data, sec_error = _safe(lambda: sec_filings(symbol, "AANIANG Trading Station research@example.com"), {})
-    if sec_error: errors["SEC filings"] = sec_error
     estimates, estimates_error = _safe(lambda: _estimate_revisions(symbol), (pd.DataFrame(), pd.DataFrame()))
-    if estimates_error: errors["Estimate revisions"] = estimates_error
     due_diligence = _due_diligence_pack(snapshot, technical, trends, professional["peer_comparison"], dividend[1], insiders)
 
     errors = {
@@ -164,12 +161,14 @@ def complete_stock_research(symbol: str, fmp_key: str = "", universe: pd.DataFra
         "Pattern detection": patterns_error, "Technical alerts": alerts_error,
         "Management quality": management_error, "Dividend intelligence": dividend_error,
         "Insider activity": insider_error, "Ownership": ownership_error,
-        "Catalysts": catalyst_error,
+        "Catalysts": catalyst_error, "Financial trends": trend_error,
+        "SEC filings": sec_error, "Estimate revisions": estimates_error,
     }
     return {
         "symbol": symbol,
         "generated_at": datetime.now(timezone.utc),
         "snapshot": snapshot,
+        "decision_peers": peers,
         "brief": research_brief(snapshot),
         "ai_summary": ai_summary,
         "technical_score": score_result[0],
@@ -207,14 +206,18 @@ def complete_stock_research(symbol: str, fmp_key: str = "", universe: pd.DataFra
 
 def _financial_trends(symbol: str) -> pd.DataFrame:
     ticker = yf.Ticker(symbol); income = ticker.financials; cash = ticker.cashflow; balance = ticker.balance_sheet
-    columns = sorted(set(income.columns).union(cash.columns).union(balance.columns))[-5:]
+    columns = sorted(set(income.columns).union(cash.columns).union(balance.columns))[-10:]
     rows = []
-    mapping = [("Revenue",income,"Total Revenue"),("Net income",income,"Net Income"),("Operating cash flow",cash,"Operating Cash Flow"),("Free cash flow",cash,"Free Cash Flow"),("Total debt",balance,"Total Debt"),("Diluted shares",income,"Diluted Average Shares"),("Share repurchases",cash,"Repurchase Of Capital Stock")]
+    mapping = [("Revenue",income,"Total Revenue"),("Net income",income,"Net Income"),("Operating cash flow",cash,"Operating Cash Flow"),("Free cash flow",cash,"Free Cash Flow"),("Total debt",balance,"Total Debt"),("Diluted shares",income,"Diluted Average Shares"),("Share repurchases",cash,"Repurchase Of Capital Stock"),("Operating income",income,"Operating Income"),("Stock compensation",cash,"Stock Based Compensation"),("Receivables",balance,"Accounts Receivable")]
     for date in columns:
         row={"Year":getattr(date,"year",str(date))}
         for label,frame,key in mapping: row[label]=frame.at[key,date] if key in frame.index and date in frame else None
         rows.append(row)
-    return pd.DataFrame(rows).sort_values("Year")
+    frame = pd.DataFrame(rows)
+    if not frame.empty:
+        frame = frame.dropna(subset=[label for label, _, _ in mapping], how="all").sort_values("Year")
+        frame["Operating margin %"] = frame["Operating income"] / frame["Revenue"].replace(0, np.nan) * 100
+    return frame
 
 
 def _estimate_revisions(symbol: str) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -227,4 +230,3 @@ def _estimate_revisions(symbol: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     revisions=pd.concat(frames,ignore_index=True) if frames else pd.DataFrame()
     history=getattr(ticker,"earnings_history",pd.DataFrame())
     return revisions, history.reset_index() if isinstance(history,pd.DataFrame) and not history.empty else pd.DataFrame()
-

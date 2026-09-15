@@ -107,6 +107,9 @@ def _financial_trend_chart(frame: pd.DataFrame) -> Drawing:
 
 
 def complete_research_pdf(report: dict) -> bytes:
+    if "decision" in report:
+        from decision_pdf import decision_pdf
+        return decision_pdf(report)
     output = io.BytesIO(); snapshot = report["snapshot"]; symbol = report["symbol"]
     doc = SimpleDocTemplate(output, pagesize=letter, rightMargin=.55*inch, leftMargin=.55*inch,
         topMargin=.62*inch, bottomMargin=.55*inch, title=f"{symbol} Complete Research Report", author="AANIANG Trading Station")
@@ -201,4 +204,3 @@ def complete_research_pdf(report: dict) -> bytes:
         canvas.drawString(.55*inch, .28*inch, f"AANIANG | {symbol}"); canvas.drawRightString(letter[0]-.55*inch, .28*inch, f"Page {document.page}"); canvas.restoreState()
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
     return output.getvalue()
-
