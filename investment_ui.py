@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 import yfinance as yf
 from fundamentals import load_company, number, financial_history
+from investment_drafts import research_draft
 from investment_workspace import (MOATS, symbol, scorecard, price_status, quarter_metrics,
                                   quarter_check, peer_row, validate_record, load_notebook, export_notebook)
 
@@ -66,6 +67,7 @@ def render():
         st.download_button('Download investment notebook', export_notebook(book), 'aaniang-investment-notebook.json', 'application/json', key='iw_download')
         return
     ticker = bundle['symbol']; info = bundle['info']; record = book.setdefault(ticker, {})
+    draft = research_draft(bundle)
     quote_currency = info.get('currency', 'Unknown')
     price = number(info.get('currentPrice')) or number(info.get('regularMarketPrice'))
     st.subheader(f"{info.get('longName', ticker)} ({ticker})")
@@ -87,12 +89,23 @@ def render():
             st.dataframe((annual/1e6).round(2),width='stretch')
         st.link_button('Review company filings',f'https://www.sec.gov/edgar/browse/?CIK={ticker}&owner=exclude')
     with panels[1]:
+        st.subheader('Company evidence and research starting points')
+        st.caption('Loaded automatically from this company’s available data. These observations are unreviewed starting points, not a confirmed moat rating. Your saved notes remain below.')
+        st.dataframe(draft['facts'],hide_index=True,width='stretch',column_config={'Source':st.column_config.LinkColumn('Data source')})
+        if not draft['has_data']: st.warning('The provider returned no usable company fundamentals. Reload the investment overview or add sourced filing evidence below.')
+        with st.expander('Suggested moat research',expanded=not bool(record.get('moat'))):
+            for item in draft['moat']:
+                st.markdown('**'+item['Advantage']+'**')
+                st.write(item['Evidence'])
+                st.caption(item['Threat'])
+                if item['Source']: st.link_button('Review source: '+item['Advantage'],item['Source'])
         st.write('Record the competitive advantage, supporting filing evidence and what could weaken it.')
         st.caption('Evidence is your assessment from the cited source. Profitability scores alone do not verify a moat. Read the annual report business, competition and risk sections using the filings link above.')
-        rows=record.get('moat') or [{'Advantage':m,'Evidence':'','Threat':'','Source':'','Reviewed':''} for m in MOATS]
+        rows=record.get('moat') or draft['moat']
+        editor_version=st.session_state.get('iw_moat_version_'+ticker,0)
         with st.form('iw_moat_'+ticker):
-            edited=st.data_editor(pd.DataFrame(rows),num_rows='dynamic',hide_index=True,width='stretch',key='iw_edit_moat_'+ticker,
-                                  column_config={'Source':st.column_config.TextColumn('Filing URL'),'Reviewed':st.column_config.TextColumn('Reviewed date (YYYY-MM-DD)')})
+            edited=st.data_editor(pd.DataFrame(rows),num_rows='dynamic',hide_index=True,width='stretch',key=f'iw_edit_moat_{ticker}_{editor_version}',
+                                  column_config={'Source':st.column_config.TextColumn('Source URL'),'Reviewed':st.column_config.TextColumn('Reviewed date (YYYY-MM-DD)')})
             save=st.form_submit_button('Save moat evidence')
         if save:
             try:
@@ -137,10 +150,18 @@ def render():
             st.info('Save a buy-price plan, then refresh to compare all saved companies.')
         st.caption('Prices are cached for up to 15 minutes. Status is evaluated when refreshed here; no background alerts are sent.')
     with panels[3]:
+        st.subheader('Investment thesis research draft')
+        st.caption('Built from the loaded company data. Review and edit before saving. Saving enables quarterly checks; the default thresholds are illustrative, not forecasts.')
+        if record.get('thesis_updated'):
+            st.caption('Your saved investment thesis is shown in the form below.')
+        with st.expander('Current company evidence',expanded=not bool(record.get('thesis_updated'))):
+            st.write(draft['thesis'])
+            st.write(draft['catalysts'])
+            st.write(draft['invalidation'])
         with st.form('iw_thesis_'+ticker):
-            thesis=st.text_area('Why own this company?',value=record.get('thesis',''),key='iw_edit_thesis_'+ticker)
-            catalysts=st.text_area('What do you expect to happen?',value=record.get('catalysts',''),key='iw_edit_catalysts_'+ticker)
-            invalidation=st.text_area('What would make you reconsider?',value=record.get('invalidation',''),key='iw_edit_invalidation_'+ticker)
+            thesis=st.text_area('Why own this company?',value=record.get('thesis',draft['thesis']),key='iw_edit_thesis_'+ticker,height=260)
+            catalysts=st.text_area('What do you expect to happen?',value=record.get('catalysts',draft['catalysts']),key='iw_edit_catalysts_'+ticker)
+            invalidation=st.text_area('What would make you reconsider?',value=record.get('invalidation',draft['invalidation']),key='iw_edit_invalidation_'+ticker)
             growth=st.number_input('Minimum quarterly revenue growth YoY (%)',min_value=-100.,max_value=1000.,value=float(record.get('min_growth',5)),key='iw_edit_growth_'+ticker)
             margin=st.number_input('Minimum quarterly operating margin (%)',min_value=-1000.,max_value=100.,value=float(record.get('min_margin',10)),key='iw_edit_margin_'+ticker)
             fcf=st.checkbox('Expect positive quarterly free cash flow',value=record.get('positive_fcf',True),key='iw_edit_fcf_'+ticker)

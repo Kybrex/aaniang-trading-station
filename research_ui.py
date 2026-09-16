@@ -72,8 +72,8 @@ def render(bundle,record):
                     for _,row in passages[passages.Topic.eq('Moat and competition')].iterrows():
                         item={'Advantage':'Filing passage - needs review','Evidence':row.Passage,'Threat':'Not yet assessed','Source':row.Source,'Reviewed':''}
                         if item not in existing and len(existing)<100: existing.append(item)
-                    st.session_state.pop('iw_edit_moat_'+ticker,None)
-                    st.success('Passages added as unreviewed evidence. Save the notebook to keep them.')
+                    st.session_state['iw_moat_version_'+ticker]=st.session_state.get('iw_moat_version_'+ticker,0)+1
+                    st.rerun()
             st.caption('Keyword-selected excerpts from the company’s filing, not an AI verdict or proof of a moat. Read the surrounding source and assess contrary evidence.')
             labels=[f"{f['Form']} | {f['Filed']} | {f['Period']}" for f in filings]
             chosen=st.selectbox('Additional filing for guidance or risk review',range(len(filings)),format_func=lambda i:labels[i],key='research_document_'+ticker)
