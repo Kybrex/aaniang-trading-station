@@ -77,10 +77,12 @@ class DraftTests(unittest.TestCase):
             self.click(app,'Add passages to my moat research notes')
             rows=app.session_state['investment_book']['TEST']['moat']
             self.assertEqual(len(rows),2)
-            self.assertTrue(any('Example annual filing excerpt' in str(frame.value) for frame in app.dataframe))
+            editors=[frame.value for frame in app.dataframe if 'Advantage' in frame.value.columns]
+            self.assertTrue(any('Example annual filing excerpt' in frame['Evidence'].tolist() for frame in editors))
             self.click(app,'Save moat evidence')
             self.assertEqual(len(app.session_state['investment_book']['TEST']['moat']),2)
             self.assertEqual(app.text_area(key='iw_edit_thesis_TEST').value,'Saved original')
 
 
 if __name__=='__main__': unittest.main()
+
