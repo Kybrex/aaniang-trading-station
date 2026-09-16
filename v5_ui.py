@@ -69,12 +69,23 @@ def render() -> None:
         symbol = _symbol_input("Company symbol", universe, "v5_insider_symbol")
         if st.button("Load insider activity", type="primary"):
             try:
-                with st.spinner("Loading reported insider transactions..."): st.session_state.v5_insiders = insider_activity(symbol)
-            except Exception as error: st.error(str(error))
+                with st.spinner("Loading reported insider transactions..."):
+                    st.session_state.v5_insiders = insider_activity(symbol)
+                    st.session_state.v5_insiders_symbol = symbol
+            except Exception as error:
+                st.session_state.pop('v5_insiders',None)
+                st.session_state.pop('v5_insiders_symbol',None)
+                st.error(str(error))
         data = st.session_state.get("v5_insiders")
-        if isinstance(data, pd.DataFrame):
+        if isinstance(data, pd.DataFrame) and st.session_state.get('v5_insiders_symbol') != symbol:
+            st.info('Click Load insider activity to retrieve transactions for this company.')
+        elif isinstance(data, pd.DataFrame):
             if data.empty: st.warning("No insider transactions were returned.")
             else:
+                from insider_transactions import normalize_insiders
+                data = normalize_insiders(data)
+                st.caption(f'Reported transactions for {symbol}. Buy and Sell use explicit source descriptions or transaction codes. Grants, gifts, exercises and tax payments are shown separately; Unknown means the source does not identify the type.')
+                st.dataframe(data[['Transaction type']].value_counts(sort=False).rename('Transactions').reset_index(),hide_index=True,width='stretch')
                 st.dataframe(data, hide_index=True, width="stretch")
                 st.download_button("Download insider data", data.to_csv(index=False), f"{symbol}-insiders.csv", "text/csv")
 

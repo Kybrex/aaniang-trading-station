@@ -41,8 +41,9 @@ def transcript_analysis(text: str) -> dict:
 
 
 def insider_activity(symbol: str) -> pd.DataFrame:
+    from insider_transactions import normalize_insiders
     data = yf.Ticker(symbol).insider_transactions
-    return data.copy() if isinstance(data, pd.DataFrame) else pd.DataFrame()
+    return normalize_insiders(data)
 
 
 def ownership(symbol: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
